@@ -54,23 +54,26 @@ Sistema completo de telefonia VoIP integrado com Twilio para gestão de chamadas
 ## Estrutura do Projeto
 
 ```
-twilio_dev/
+Twilio-Solutions/
 ├── app.py                 # Aplicação principal Flask
-├── config.py              # Configurações centralizadas
-├── database.py            # Conexão com banco de dados
 ├── requirements.txt       # Dependências Python
 ├── .env.example           # Exemplo de variáveis de ambiente
-├── .gitignore            # Arquivos ignorados pelo Git
+├── .gitignore             # Arquivos ignorados pelo Git
 │
-├── models/               # Modelos do banco de dados
+├── core/                  # Infraestrutura e configurações
 │   ├── __init__.py
-│   └── user.py           # Modelo de usuário
+│   ├── config.py          # Configurações centralizadas
+│   └── database.py        # Conexão com banco de dados
 │
-└── auth/                 # Módulo de autenticação
+├── models/                # Modelos do banco de dados
+│   ├── __init__.py
+│   └── user.py            # Modelo de usuário
+│
+└── auth/                  # Módulo de autenticação
     ├── __init__.py
-    ├── decorators.py     # @jwt_required, @validate_twilio_signature
-    ├── jwt_utils.py      # Criação e validação de tokens
-    └── routes.py         # Endpoints /register, /login, /me
+    ├── decorators.py      # @jwt_required, @validate_twilio_signature
+    ├── jwt_utils.py       # Criação e validação de tokens
+    └── routes.py          # Endpoints /register, /login, /me
 ```
 
 ## Instalação

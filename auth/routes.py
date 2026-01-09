@@ -1,7 +1,7 @@
 import re
 from flask import Blueprint, request, jsonify, g
 from models.user import User
-from database import db
+from core.database import db
 from auth.jwt_utils import create_token
 from auth.decorators import jwt_required
 

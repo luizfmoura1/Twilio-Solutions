@@ -4,8 +4,8 @@ from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
 
-from config import Config
-from database import db, init_db
+from core.config import Config
+from core.database import db, init_db
 from auth.routes import auth_bp
 from auth.decorators import jwt_required, validate_twilio_signature
 
