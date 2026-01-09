@@ -84,3 +84,6 @@ logs/
 
 # Twilio specific
 recordings/
+
+# Claude Code
+.claude/
