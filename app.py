@@ -1,9 +1,10 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
+from flasgger import Swagger
 
 from core.config import Config
 from core.database import db, init_db
@@ -16,6 +17,42 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Swagger config with JWT auth
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": 'apispec',
+            "route": '/apispec.json',
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/apidocs/"
+}
+
+swagger_template = {
+    "swagger": "2.0",
+    "info": {
+        "title": "Twilio Discador API",
+        "description": "API para gerenciamento de chamadas Twilio",
+        "version": "1.0.0"
+    },
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "Cole APENAS o token JWT (sem 'Bearer')"
+        }
+    },
+    "security": [{"Bearer": []}]
+}
+
+swagger = Swagger(app, config=swagger_config, template=swagger_template)
 
 # Initialize database
 init_db(app)
@@ -33,6 +70,29 @@ client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 @validate_twilio_signature
 def voice():
     """Atende chamada: toca disclaimer e enfileira"""
+    # Captura dados da chamada inbound
+    call_sid = request.form.get('CallSid')
+    from_number = request.form.get('From', '')
+    to_number = request.form.get('To', '')
+    direction = request.form.get('Direction', 'inbound')
+
+    # Salva chamada no banco
+    existing_call = Call.query.filter_by(call_sid=call_sid).first()
+    if not existing_call:
+        lead_state = get_state_from_phone(from_number)
+        call = Call(
+            call_sid=call_sid,
+            from_number=from_number,
+            to_number=to_number,
+            lead_state=lead_state,
+            direction=direction,
+            status='ringing',
+            started_at=datetime.now(timezone.utc)
+        )
+        db.session.add(call)
+        db.session.commit()
+        print(f"[INBOUND] New call {call_sid} from {from_number} - State: {lead_state}")
+
     response = VoiceResponse()
 
     response.say(
@@ -101,7 +161,7 @@ def call_status():
             lead_state=lead_state,
             direction=direction,
             status=status,
-            started_at=datetime.utcnow()
+            started_at=datetime.now(timezone.utc)
         )
         db.session.add(call)
     else:
@@ -110,9 +170,9 @@ def call_status():
 
     # Atualiza campos baseado no status
     if status == 'answered' and not call.answered_at:
-        call.answered_at = datetime.utcnow()
+        call.answered_at = datetime.now(timezone.utc)
     elif status == 'completed':
-        call.ended_at = datetime.utcnow()
+        call.ended_at = datetime.now(timezone.utc)
         call.duration = int(duration) if duration else 0
 
     db.session.commit()
@@ -127,7 +187,33 @@ def call_status():
 @app.route("/make_call", methods=['POST'])
 @jwt_required
 def make_call():
-    """Inicia chamada outbound - requires JWT authentication"""
+    """
+    Inicia uma chamada outbound
+    ---
+    tags:
+      - Calls
+    security:
+      - Bearer: []
+    parameters:
+      - name: to
+        in: formData
+        type: string
+        required: true
+        description: Numero de telefone destino (formato E.164, ex +15551234567)
+    responses:
+      200:
+        description: Chamada iniciada com sucesso
+        schema:
+          properties:
+            call_sid:
+              type: string
+            status:
+              type: string
+      400:
+        description: Parametro 'to' ausente
+      401:
+        description: Token JWT invalido ou ausente
+    """
     to_number = request.form.get('to')
 
     if not to_number:
@@ -152,7 +238,47 @@ def make_call():
 @app.route("/calls", methods=['GET'])
 @jwt_required
 def get_calls():
-    """Retorna histórico de chamadas com filtros opcionais"""
+    """
+    Lista historico de chamadas
+    ---
+    tags:
+      - Calls
+    security:
+      - Bearer: []
+    parameters:
+      - name: state
+        in: query
+        type: string
+        required: false
+        description: Filtrar por estado (ex CA, TX, NY)
+      - name: status
+        in: query
+        type: string
+        required: false
+        description: Filtrar por status (completed, answered, no-answer, busy, failed)
+      - name: direction
+        in: query
+        type: string
+        required: false
+        description: Filtrar por direcao (inbound, outbound)
+      - name: limit
+        in: query
+        type: integer
+        required: false
+        default: 50
+        description: Limite de resultados
+    responses:
+      200:
+        description: Lista de chamadas
+        schema:
+          properties:
+            count:
+              type: integer
+            calls:
+              type: array
+      401:
+        description: Token JWT invalido ou ausente
+    """
     # Parâmetros de filtro
     state = request.args.get('state')  # Filtrar por estado (ex: CA, TX)
     status = request.args.get('status')  # Filtrar por status (completed, answered, etc.)
@@ -182,7 +308,23 @@ def get_calls():
 @app.route("/calls/stats", methods=['GET'])
 @jwt_required
 def get_calls_stats():
-    """Retorna estatísticas das chamadas por estado"""
+    """
+    Estatisticas das chamadas por estado
+    ---
+    tags:
+      - Calls
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Estatisticas agrupadas por estado
+        schema:
+          properties:
+            stats:
+              type: array
+      401:
+        description: Token JWT invalido ou ausente
+    """
     from sqlalchemy import func
 
     stats = db.session.query(

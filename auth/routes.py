@@ -17,8 +17,42 @@ def is_valid_email(email):
 @auth_bp.route('/register', methods=['POST'])
 def register():
     """
-    Register a new user
-    Expects JSON: {"email": "...", "password": "..."}
+    Registrar novo usuario
+    ---
+    tags:
+      - Auth
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              example: usuario@email.com
+            password:
+              type: string
+              example: senha12345
+              description: Minimo 8 caracteres
+    responses:
+      201:
+        description: Usuario registrado com sucesso
+        schema:
+          properties:
+            message:
+              type: string
+            token:
+              type: string
+            user:
+              type: object
+      400:
+        description: Dados invalidos
+      409:
+        description: Email ja registrado
     """
     data = request.get_json()
 
@@ -59,8 +93,40 @@ def register():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     """
-    Authenticate user and return JWT token
-    Expects JSON: {"email": "...", "password": "..."}
+    Login e obter token JWT
+    ---
+    tags:
+      - Auth
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              example: teste@email.com
+            password:
+              type: string
+              example: admin123
+    responses:
+      200:
+        description: Login bem sucedido, retorna token JWT
+        schema:
+          properties:
+            message:
+              type: string
+            token:
+              type: string
+              description: Use este token no header Authorization Bearer TOKEN
+            user:
+              type: object
+      401:
+        description: Email ou senha invalidos
     """
     data = request.get_json()
 

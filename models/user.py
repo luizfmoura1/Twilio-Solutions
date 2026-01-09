@@ -1,6 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from core.database import db
 import bcrypt
+
+
+def utcnow():
+    return datetime.now(timezone.utc)
 
 
 class User(db.Model):
@@ -9,7 +13,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow)
     is_active = db.Column(db.Boolean, default=True)
 
     def set_password(self, password):

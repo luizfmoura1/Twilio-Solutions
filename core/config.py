@@ -1,7 +1,19 @@
 import os
+import secrets
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def get_jwt_secret():
+    """Get JWT secret, generating a temporary one for development if not set."""
+    secret = os.environ.get('JWT_SECRET')
+    if not secret:
+        if os.environ.get('FLASK_ENV') == 'production':
+            raise ValueError('JWT_SECRET must be set in production environment')
+        # Generate temporary secret for development (will change on restart)
+        return secrets.token_hex(32)
+    return secret
 
 
 class Config:
@@ -18,7 +30,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
 
     # JWT
-    JWT_SECRET: str = os.environ.get('JWT_SECRET', 'dev-secret-change-in-production')
+    JWT_SECRET: str = get_jwt_secret()
     JWT_EXPIRATION_HOURS: int = int(os.environ.get('JWT_EXPIRATION_HOURS', '24'))
 
     # Development

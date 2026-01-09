@@ -8,7 +8,7 @@ from twilio.request_validator import RequestValidator
 def jwt_required(f):
     """
     Decorator for API endpoints requiring JWT authentication.
-    Expects: Authorization: Bearer <token>
+    Accepts: Authorization: Bearer <token> OR Authorization: <token>
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -17,11 +17,14 @@ def jwt_required(f):
         if not auth_header:
             return jsonify({'error': 'Missing Authorization header'}), 401
 
+        # Aceita tanto "Bearer TOKEN" quanto apenas "TOKEN"
         parts = auth_header.split()
-        if len(parts) != 2 or parts[0].lower() != 'bearer':
-            return jsonify({'error': 'Invalid Authorization header format'}), 401
-
-        token = parts[1]
+        if len(parts) == 2 and parts[0].lower() == 'bearer':
+            token = parts[1]
+        elif len(parts) == 1:
+            token = parts[0]
+        else:
+            return jsonify({'error': 'Invalid Authorization header format. Use: Bearer TOKEN ou apenas TOKEN'}), 401
 
         try:
             payload = jwt.decode(
