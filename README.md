@@ -34,7 +34,9 @@ Sistema completo de telefonia VoIP integrado com Twilio para gestão de chamadas
 | Fila de Espera | Música de espera enquanto aguarda atendimento | ✅ |
 | Integração Flex | Chamadas direcionadas para agentes no Twilio Flex | ✅ |
 | Gravação Dual-Channel | Gravação separada de cliente e agente | ✅ |
-| Webhooks de Status | Recebe atualizações em tempo real das chamadas | ✅ |
+| Webhooks de Status | Recebe e salva status das chamadas no banco | ✅ |
+| Histórico de Chamadas | Consulta chamadas com filtros por estado, status | ✅ |
+| Detecção de Estado (US) | Identifica estado do lead pelo número | ✅ |
 | Autenticação JWT | Proteção de endpoints da API | ✅ |
 | Sistema de Usuários | Registro e login com hash de senha | ✅ |
 
@@ -42,7 +44,6 @@ Sistema completo de telefonia VoIP integrado com Twilio para gestão de chamadas
 
 | Feature | Descrição | Complexidade |
 |---------|-----------|--------------|
-| Blacklist / Opt-out | Não ligar para números bloqueados | 🟢 Baixa |
 | AMD (Machine Detection) | Detectar se atendeu humano ou caixa postal | 🟡 Média |
 | Whisper | Mensagem que só o agente ouve antes de atender | 🟡 Média |
 | Failover (Siga-me) | Redirecionar se agente não atender | 🔴 Alta |
@@ -63,11 +64,13 @@ Twilio-Solutions/
 ├── core/                  # Infraestrutura e configurações
 │   ├── __init__.py
 │   ├── config.py          # Configurações centralizadas
-│   └── database.py        # Conexão com banco de dados
+│   ├── database.py        # Conexão com banco de dados
+│   └── phone_utils.py     # Utilitários de telefone (área code → estado)
 │
 ├── models/                # Modelos do banco de dados
 │   ├── __init__.py
-│   └── user.py            # Modelo de usuário
+│   ├── user.py            # Modelo de usuário
+│   └── call.py            # Modelo de chamadas
 │
 └── auth/                  # Módulo de autenticação
     ├── __init__.py
@@ -136,6 +139,8 @@ python app.py
 | Método | Endpoint | Descrição | Auth |
 |--------|----------|-----------|------|
 | POST | `/make_call` | Iniciar chamada outbound | JWT |
+| GET | `/calls` | Listar histórico de chamadas | JWT |
+| GET | `/calls/stats` | Estatísticas por estado | JWT |
 
 ### Webhooks Twilio
 
