@@ -1,0 +1,9 @@
+{
+  "include": ["."],
+  "exclude": ["venv", "__pycache__"],
+  "venvPath": ".",
+  "venv": "venv",
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false,
+  "pythonVersion": "3.14"
+}
