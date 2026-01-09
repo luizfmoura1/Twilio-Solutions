@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python app.py:*)",
+      "Bash(cat:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: Twilio Solutions\n\nFeatures implemented:\n- Flask API with Twilio integration\n- JWT authentication system\n- User registration and login\n- Call queue with hold music\n- Recording disclaimer\n- Twilio Flex integration\n- Dual-channel recording\n- Webhook signature validation\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}
