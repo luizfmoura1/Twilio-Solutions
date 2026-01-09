@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timezone
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
@@ -138,13 +138,17 @@ def assignment():
 @app.route("/call_status", methods=['POST'])
 @validate_twilio_signature
 def call_status():
-    """Recebe atualizacoes de status da chamada e salva no banco"""
+    """
+    Recebe atualizacoes de status da chamada e salva no banco.
+    Eventos: initiated, ringing, in-progress, completed, busy, no-answer, canceled, failed
+    """
     call_sid = request.form.get('CallSid')
     status = request.form.get('CallStatus')
     duration = request.form.get('CallDuration', 0)
     from_number = request.form.get('From', '')
     to_number = request.form.get('To', '')
     direction = request.form.get('Direction', '')
+    sip_response_code = request.form.get('SipResponseCode', '')
 
     # Busca ou cria registro da chamada
     call = Call.query.filter_by(call_sid=call_sid).first()
@@ -169,15 +173,60 @@ def call_status():
         call.status = status
 
     # Atualiza campos baseado no status
-    if status == 'answered' and not call.answered_at:
+    if status == 'in-progress' and not call.answered_at:
         call.answered_at = datetime.now(timezone.utc)
+        call.disposition = 'answered'
     elif status == 'completed':
         call.ended_at = datetime.now(timezone.utc)
         call.duration = int(duration) if duration else 0
+        # Se não teve disposition ainda, marca como answered (completou normalmente)
+        if not call.disposition:
+            call.disposition = 'answered'
+    elif status == 'busy':
+        call.ended_at = datetime.now(timezone.utc)
+        call.disposition = 'busy'
+    elif status == 'no-answer':
+        call.ended_at = datetime.now(timezone.utc)
+        call.disposition = 'no-answer'
+    elif status == 'failed':
+        call.ended_at = datetime.now(timezone.utc)
+        call.disposition = 'failed'
+    elif status == 'canceled':
+        call.ended_at = datetime.now(timezone.utc)
+        call.disposition = 'canceled'
 
     db.session.commit()
 
-    print(f"Call {call_sid}: {status} (duration: {duration}s) - State: {call.lead_state}")
+    print(f"[STATUS] Call {call_sid}: {status} | Disposition: {call.disposition} | Duration: {duration}s")
+
+    return '', 204
+
+
+@app.route("/recording_status", methods=['POST'])
+@validate_twilio_signature
+def recording_status():
+    """
+    Recebe callback quando gravacao esta pronta.
+    Salva a URL da gravacao no banco.
+    """
+    call_sid = request.form.get('CallSid')
+    recording_sid = request.form.get('RecordingSid')
+    recording_url = request.form.get('RecordingUrl')
+    recording_status = request.form.get('RecordingStatus')
+    recording_duration = request.form.get('RecordingDuration', 0)
+
+    if recording_status == 'completed' and recording_url:
+        call = Call.query.filter_by(call_sid=call_sid).first()
+        if call:
+            # URL com formato .mp3 para facilitar reprodução
+            call.recording_url = f"{recording_url}.mp3"
+            call.recording_sid = recording_sid
+            db.session.commit()
+            print(f"[RECORDING] Call {call_sid}: Recording saved - {recording_url}.mp3")
+        else:
+            print(f"[RECORDING] Call {call_sid} not found in database")
+    else:
+        print(f"[RECORDING] Call {call_sid}: Status {recording_status}")
 
     return '', 204
 
@@ -220,16 +269,39 @@ def make_call():
         return jsonify({"error": "Missing 'to' parameter"}), 400
 
     try:
-        call = client.calls.create(
+        # Criar chamada via Twilio com todos os callbacks
+        twilio_call = client.calls.create(
             url=f"{Config.BASE_URL}/voice",
             to=to_number,
             from_=Config.TWILIO_NUMBER,
             record=True,
             recording_channels='dual',
+            recording_status_callback=f"{Config.BASE_URL}/recording_status",
+            recording_status_callback_event=['completed'],
             status_callback=f"{Config.BASE_URL}/call_status",
-            status_callback_event=['initiated', 'ringing', 'answered', 'completed']
+            status_callback_event=['initiated', 'ringing', 'in-progress', 'completed', 'busy', 'no-answer', 'canceled', 'failed']
         )
-        return jsonify({"call_sid": call.sid, "status": "initiated"})
+
+        # Salvar chamada no banco com agent_id
+        lead_state = get_state_from_phone(to_number)
+        call_record = Call(
+            call_sid=twilio_call.sid,
+            from_number=Config.TWILIO_NUMBER,
+            to_number=to_number,
+            lead_state=lead_state,
+            direction='outbound',
+            status='initiated',
+            agent_id=g.current_user_id,
+            started_at=datetime.now(timezone.utc)
+        )
+        db.session.add(call_record)
+        db.session.commit()
+
+        return jsonify({
+            "call_sid": twilio_call.sid,
+            "status": "initiated",
+            "agent_id": g.current_user_id
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
