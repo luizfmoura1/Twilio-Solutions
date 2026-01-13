@@ -35,3 +35,19 @@ class Config:
 
     # Development
     SKIP_TWILIO_VALIDATION: bool = os.environ.get('SKIP_TWILIO_VALIDATION', 'false').lower() == 'true'
+
+    # Slack Alerts
+    SLACK_WEBHOOK_URL: str = os.environ.get('SLACK_WEBHOOK_URL', '')
+
+    # WhatsApp Alerts (uses Twilio API)
+    WHATSAPP_FROM_NUMBER: str = os.environ.get('WHATSAPP_FROM_NUMBER', '')  # whatsapp:+14155238886
+    WHATSAPP_TO_NUMBER: str = os.environ.get('WHATSAPP_TO_NUMBER', '')  # whatsapp:+5511999999999
+
+    # Alert Preferences (which events trigger alerts)
+    ALERT_ON_INITIATED: bool = os.environ.get('ALERT_ON_INITIATED', 'true').lower() == 'true'
+    ALERT_ON_RINGING: bool = os.environ.get('ALERT_ON_RINGING', 'false').lower() == 'true'
+    ALERT_ON_ANSWERED: bool = os.environ.get('ALERT_ON_ANSWERED', 'true').lower() == 'true'
+    ALERT_ON_COMPLETED: bool = os.environ.get('ALERT_ON_COMPLETED', 'true').lower() == 'true'
+    ALERT_ON_MISSED: bool = os.environ.get('ALERT_ON_MISSED', 'true').lower() == 'true'
+    ALERT_ON_FAILED: bool = os.environ.get('ALERT_ON_FAILED', 'true').lower() == 'true'
+    ALERT_ON_RECORDING: bool = os.environ.get('ALERT_ON_RECORDING', 'false').lower() == 'true'

@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime, timezone
 from flask import Flask, request, jsonify, g
 from twilio.twiml.voice_response import VoiceResponse
@@ -9,6 +10,7 @@ from flasgger import Swagger
 from core.config import Config
 from core.database import db, init_db
 from core.phone_utils import get_state_from_phone
+from core.alerts import init_alerts, get_alert_manager, CallAlert
 from models.call import Call
 from auth.routes import auth_bp
 from auth.decorators import jwt_required, validate_twilio_signature
@@ -63,6 +65,9 @@ app.register_blueprint(auth_bp, url_prefix='/auth')
 # Twilio client
 client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
+# Initialize alerts
+init_alerts(client)
+
 
 # ============== TWILIO WEBHOOKS (with signature validation) ==============
 
@@ -71,7 +76,7 @@ client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 def voice():
     """Atende chamada: toca disclaimer e enfileira"""
     # Captura dados da chamada inbound
-    call_sid = request.form.get('CallSid')
+    call_sid = request.form.get('CallSid', '')
     from_number = request.form.get('From', '')
     to_number = request.form.get('To', '')
     direction = request.form.get('Direction', 'inbound')
@@ -92,6 +97,21 @@ def voice():
         db.session.add(call)
         db.session.commit()
         print(f"[INBOUND] New call {call_sid} from {from_number} - State: {lead_state}")
+
+        # Send "Incoming Call" alert
+        alert_manager = get_alert_manager()
+        if alert_manager:
+            alert = CallAlert(
+                call_sid=call_sid,
+                from_number=from_number,
+                to_number=to_number,
+                status='ringing',
+                duration=0,
+                lead_state=lead_state,
+                direction='inbound'
+            )
+            alert_manager.notify_call_status(alert)
+
 
     response = VoiceResponse()
 
@@ -127,12 +147,173 @@ def wait():
 @app.route("/assignment", methods=['POST'])
 @validate_twilio_signature
 def assignment():
-    """Callback do TaskRouter quando encontra agente disponivel"""
-    return jsonify({
-        "instruction": "dequeue",
-        "from": Config.TWILIO_NUMBER,
-        "post_work_activity_sid": None
-    })
+    """Callback do TaskRouter - aceita a tarefa sem instrução específica"""
+    print(f"[ASSIGNMENT] Task assignment callback received")
+
+    # Retorna accept para deixar o Flex gerenciar o fluxo da chamada
+    return jsonify({"accept": True})
+
+
+@app.route("/taskrouter_event", methods=['POST'])
+@validate_twilio_signature
+def taskrouter_event():
+    """Callback para eventos do TaskRouter (task.created, task.updated, reservation.accepted, etc)"""
+    event_type = request.form.get('EventType', '')
+    task_attributes = request.form.get('TaskAttributes', '{}')
+    task_sid = request.form.get('TaskSid', '')
+    worker_name = request.form.get('WorkerName', '')
+
+    print(f"[TASKROUTER EVENT] {event_type} - TaskSid: {task_sid} - Worker: {worker_name}")
+    print(f"[TASKROUTER ATTRS] {task_attributes}")
+
+    try:
+        attrs = json.loads(task_attributes)
+    except:
+        attrs = {}
+
+    # Helper para extrair call_sid do customer nas conferences
+    def get_customer_call_sid(attributes):
+        """Extrai o call_sid do customer de conference.participants"""
+        conference = attributes.get('conference', {})
+        participants = conference.get('participants', {})
+        customer = participants.get('customer', '')
+        # customer pode ser o call_sid direto ou um objeto
+        if isinstance(customer, str) and customer.startswith('CA'):
+            return customer
+        elif isinstance(customer, dict):
+            return customer.get('call_sid', '')
+        return ''
+
+    # Quando uma task é criada (captura chamadas outbound do Flex)
+    if event_type == 'task.created':
+        direction = attrs.get('direction', '')
+        from_number = attrs.get('from', '')
+        to_number = attrs.get('outbound_to', '') or attrs.get('to', '')
+        call_sid = attrs.get('call_sid', '') or get_customer_call_sid(attrs)
+
+        print(f"[TASK CREATED] TaskSid={task_sid}, CallSid={call_sid}, Direction={direction}, From={from_number}, To={to_number}")
+
+        if direction == 'outbound' and to_number:
+            # Usa task_sid como identificador se call_sid ainda não existe
+            identifier = call_sid if call_sid else f"TASK:{task_sid}"
+
+            existing_call = Call.query.filter_by(call_sid=identifier).first()
+            if not existing_call:
+                lead_state = get_state_from_phone(to_number)
+                call = Call(
+                    call_sid=identifier,
+                    from_number=from_number,
+                    to_number=to_number,
+                    lead_state=lead_state,
+                    direction='outbound',
+                    status='initiated',
+                    started_at=datetime.now(timezone.utc)
+                )
+                db.session.add(call)
+                db.session.commit()
+                print(f"[OUTBOUND] Saved call {identifier} to database - To: {to_number}, State: {lead_state}")
+
+                # Send alert for outbound call initiated
+                alert_manager = get_alert_manager()
+                if alert_manager:
+                    alert = CallAlert(
+                        call_sid=identifier,
+                        from_number=from_number,
+                        to_number=to_number,
+                        status='initiated',
+                        duration=0,
+                        lead_state=lead_state,
+                        direction='outbound'
+                    )
+                    alert_manager.notify_call_status(alert)
+
+    # Quando a task é atualizada (pode conter o call_sid real)
+    elif event_type == 'task.updated':
+        call_sid = attrs.get('call_sid', '') or get_customer_call_sid(attrs)
+
+        print(f"[TASK UPDATED] TaskSid={task_sid}, CallSid={call_sid}")
+
+        if call_sid and task_sid:
+            # Busca pelo task_sid temporário e atualiza com o call_sid real
+            temp_identifier = f"TASK:{task_sid}"
+            call = Call.query.filter_by(call_sid=temp_identifier).first()
+            if call:
+                call.call_sid = call_sid
+                db.session.commit()
+                print(f"[OUTBOUND] Updated call_sid from {temp_identifier} to {call_sid}")
+
+    # Quando o agente aceita a reserva (chamada atendida)
+    elif event_type == 'reservation.accepted':
+        call_sid = attrs.get('call_sid', '') or get_customer_call_sid(attrs)
+        direction = attrs.get('direction', '')
+
+        print(f"[RESERVATION ACCEPTED] Agent {worker_name} answered - TaskSid={task_sid}, CallSid={call_sid}")
+
+        # Tenta encontrar a chamada pelo call_sid ou pelo task_sid temporário
+        call = None
+        if call_sid:
+            call = Call.query.filter_by(call_sid=call_sid).first()
+        if not call and task_sid:
+            call = Call.query.filter_by(call_sid=f"TASK:{task_sid}").first()
+            if call and call_sid:
+                # Atualiza com o call_sid real
+                call.call_sid = call_sid
+                print(f"[OUTBOUND] Updated call_sid to {call_sid}")
+
+        if call_sid:
+            # Start recording when call is answered
+            try:
+                client.calls(call_sid).recordings.create(
+                    recording_channels='dual',
+                    recording_status_callback=f"{Config.BASE_URL}/recording_status",
+                    recording_status_callback_event=['completed']
+                )
+                print(f"[RECORDING] Started recording for call {call_sid}")
+            except Exception as e:
+                print(f"[RECORDING ERROR] Failed to start recording for {call_sid}: {e}")
+
+        if call:
+            call.answered_at = datetime.now(timezone.utc)
+            call.disposition = 'answered'
+            call.worker_name = worker_name
+            call.status = 'in-progress'
+            db.session.commit()
+
+            # Send "Call Answered" alert
+            alert_manager = get_alert_manager()
+            if alert_manager:
+                alert = CallAlert(
+                    call_sid=call.call_sid,
+                    from_number=call.from_number,
+                    to_number=call.to_number,
+                    status='in-progress',
+                    duration=0,
+                    lead_state=call.lead_state,
+                    direction=call.direction or 'inbound',
+                    worker_name=worker_name
+                )
+                alert_manager.notify_call_status(alert)
+
+    # Quando a task é completada (chamada encerrada)
+    elif event_type == 'task.completed':
+        call_sid = attrs.get('call_sid', '') or get_customer_call_sid(attrs)
+
+        # Tenta encontrar pelo call_sid ou task_sid
+        call = None
+        if call_sid:
+            call = Call.query.filter_by(call_sid=call_sid).first()
+        if not call and task_sid:
+            call = Call.query.filter_by(call_sid=f"TASK:{task_sid}").first()
+
+        if call and not call.ended_at:
+            call.ended_at = datetime.now(timezone.utc)
+            call.status = 'completed'
+            if not call.disposition:
+                call.disposition = 'completed'
+            db.session.commit()
+            print(f"[TASK COMPLETED] Call {call.call_sid} marked as completed")
+
+    return '', 204
 
 
 @app.route("/call_status", methods=['POST'])
@@ -142,13 +323,18 @@ def call_status():
     Recebe atualizacoes de status da chamada e salva no banco.
     Eventos: initiated, ringing, in-progress, completed, busy, no-answer, canceled, failed
     """
-    call_sid = request.form.get('CallSid')
-    status = request.form.get('CallStatus')
-    duration = request.form.get('CallDuration', 0)
+    call_sid = request.form.get('CallSid', '')
+    status = request.form.get('CallStatus', '')
+    duration = request.form.get('CallDuration', '0')
     from_number = request.form.get('From', '')
     to_number = request.form.get('To', '')
     direction = request.form.get('Direction', '')
-    sip_response_code = request.form.get('SipResponseCode', '')
+
+    # Debug: log all incoming webhook data
+    print(f"[WEBHOOK DEBUG] CallSid={call_sid}, Status={status}, Direction={direction}, From={from_number}, To={to_number}")
+
+    if not call_sid:
+        return '', 400
 
     # Busca ou cria registro da chamada
     call = Call.query.filter_by(call_sid=call_sid).first()
@@ -173,15 +359,17 @@ def call_status():
         call.status = status
 
     # Atualiza campos baseado no status
-    if status == 'in-progress' and not call.answered_at:
-        call.answered_at = datetime.now(timezone.utc)
-        call.disposition = 'answered'
-    elif status == 'completed':
+    call_duration = int(duration) if duration else 0
+
+    if status == 'completed':
         call.ended_at = datetime.now(timezone.utc)
-        call.duration = int(duration) if duration else 0
-        # Se não teve disposition ainda, marca como answered (completou normalmente)
-        if not call.disposition:
+        call.duration = call_duration
+        # Só é "answered" se o agente atendeu (answered_at foi setado pelo /assignment)
+        if call.answered_at:
             call.disposition = 'answered'
+        else:
+            # Agente não atendeu = Missed Call
+            call.disposition = 'no-answer'
     elif status == 'busy':
         call.ended_at = datetime.now(timezone.utc)
         call.disposition = 'busy'
@@ -199,6 +387,25 @@ def call_status():
 
     print(f"[STATUS] Call {call_sid}: {status} | Disposition: {call.disposition} | Duration: {duration}s")
 
+    # Send alerts for all status changes
+    alert_manager = get_alert_manager()
+    if alert_manager:
+        # Use disposition for final status display (e.g., no-answer instead of completed)
+        alert_status = call.disposition if status == 'completed' and call.disposition else status
+        alert = CallAlert(
+            call_sid=call_sid,
+            from_number=from_number,
+            to_number=to_number,
+            status=alert_status,
+            duration=int(duration) if duration else 0,
+            disposition=call.disposition,
+            lead_state=call.lead_state,
+            recording_url=call.recording_url,
+            direction=call.direction or direction,
+            worker_name=call.worker_name
+        )
+        alert_manager.notify_call_status(alert)
+
     return '', 204
 
 
@@ -209,13 +416,12 @@ def recording_status():
     Recebe callback quando gravacao esta pronta.
     Salva a URL da gravacao no banco.
     """
-    call_sid = request.form.get('CallSid')
-    recording_sid = request.form.get('RecordingSid')
-    recording_url = request.form.get('RecordingUrl')
-    recording_status = request.form.get('RecordingStatus')
-    recording_duration = request.form.get('RecordingDuration', 0)
+    call_sid = request.form.get('CallSid', '')
+    recording_sid = request.form.get('RecordingSid', '')
+    recording_url = request.form.get('RecordingUrl', '')
+    rec_status = request.form.get('RecordingStatus', '')
 
-    if recording_status == 'completed' and recording_url:
+    if rec_status == 'completed' and recording_url:
         call = Call.query.filter_by(call_sid=call_sid).first()
         if call:
             # URL com formato .mp3 para facilitar reprodução
@@ -223,10 +429,26 @@ def recording_status():
             call.recording_sid = recording_sid
             db.session.commit()
             print(f"[RECORDING] Call {call_sid}: Recording saved - {recording_url}.mp3")
+
+            # Send recording alert
+            alert_manager = get_alert_manager()
+            if alert_manager:
+                alert = CallAlert(
+                    call_sid=call_sid,
+                    from_number=call.from_number,
+                    to_number=call.to_number,
+                    status=call.status or 'completed',
+                    duration=call.duration or 0,
+                    disposition=call.disposition,
+                    lead_state=call.lead_state,
+                    recording_url=call.recording_url,
+                    direction=call.direction or ''
+                )
+                alert_manager.notify_recording_ready(alert)
         else:
             print(f"[RECORDING] Call {call_sid} not found in database")
     else:
-        print(f"[RECORDING] Call {call_sid}: Status {recording_status}")
+        print(f"[RECORDING] Call {call_sid}: Status {rec_status}")
 
     return '', 204
 

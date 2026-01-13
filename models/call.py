@@ -27,6 +27,7 @@ class Call(db.Model):
 
     # Novos campos
     agent_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    worker_name = db.Column(db.String(100))  # Nome do agente que atendeu (do TaskRouter)
     cost = db.Column(db.Numeric(10, 4), default=0)  # Custo em USD
     disposition = db.Column(db.String(30))  # answered, busy, no-answer, failed, voicemail, canceled
 

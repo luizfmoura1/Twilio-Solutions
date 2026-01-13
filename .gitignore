@@ -87,3 +87,4 @@ recordings/
 
 # Claude Code
 .claude/
+tmpclaude-*-cwd

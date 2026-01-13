@@ -17,5 +17,8 @@ bcrypt==5.0.0
 # Environment
 python-dotenv==1.0.1
 
+# HTTP Client (for Slack webhooks)
+httpx==0.28.1
+
 # Production Server (optional)
 gunicorn==23.0.0
