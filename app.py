@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from datetime import datetime, timezone
 from flask import Flask, request, jsonify, g
 from twilio.twiml.voice_response import VoiceResponse
@@ -15,10 +16,23 @@ from models.call import Call
 from auth.routes import auth_bp
 from auth.decorators import jwt_required, validate_twilio_signature
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
+print("[STARTUP] Creating Flask app...")
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# ============== HEALTH CHECK (registered first!) ==============
+@app.route("/health", methods=['GET'])
+def health():
+    """Health check - always responds even if other services fail"""
+    return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}), 200
+
+print("[STARTUP] Health endpoint registered")
 
 # Swagger config with JWT auth
 swagger_config = {
@@ -56,17 +70,30 @@ swagger_template = {
 
 swagger = Swagger(app, config=swagger_config, template=swagger_template)
 
-# Initialize database
+# Initialize database (with error handling)
+print("[STARTUP] Initializing database...")
 init_db(app)
 
 # Register auth blueprint
 app.register_blueprint(auth_bp, url_prefix='/auth')
+print("[STARTUP] Auth blueprint registered")
 
 # Twilio client
-client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
+try:
+    client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
+    print("[STARTUP] Twilio client initialized")
+except Exception as e:
+    print(f"[STARTUP ERROR] Twilio client failed: {e}")
+    client = None
 
 # Initialize alerts (Slack only)
-init_alerts()
+try:
+    init_alerts()
+    print("[STARTUP] Alerts initialized")
+except Exception as e:
+    print(f"[STARTUP ERROR] Alerts failed: {e}")
+
+print("[STARTUP] App initialization complete")
 
 
 # ============== TWILIO WEBHOOKS (with signature validation) ==============
@@ -636,25 +663,6 @@ def get_calls_stats():
             }
             for stat in stats
         ]
-    })
-
-
-# ============== HEALTH CHECK ==============
-
-@app.route("/health", methods=['GET'])
-def health_check():
-    """
-    Health check endpoint for Docker/Railway
-    ---
-    tags:
-      - System
-    responses:
-      200:
-        description: Service is healthy
-    """
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
 
