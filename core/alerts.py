@@ -242,8 +242,14 @@ class AlertManager:
         """
         Send call status notifications to all configured channels.
         Returns dict with results for each channel.
+        Only sends alerts for INBOUND calls.
         """
         results = {'slack': False}
+
+        # Only send Slack alerts for inbound calls
+        if alert.direction != 'inbound':
+            logger.debug(f"Skipping alert for outbound call: {alert.call_sid}")
+            return results
 
         if not self.should_alert(alert.status):
             logger.debug(f"Skipping alert for status: {alert.status}")
@@ -256,8 +262,13 @@ class AlertManager:
         return results
 
     def notify_recording_ready(self, alert: CallAlert) -> dict:
-        """Send notification when recording is ready."""
+        """Send notification when recording is ready. Only for inbound calls."""
         results = {'slack': False}
+
+        # Only send Slack alerts for inbound calls
+        if alert.direction != 'inbound':
+            logger.debug(f"Skipping recording alert for outbound call: {alert.call_sid}")
+            return results
 
         if not self.alert_on_recording:
             return results
