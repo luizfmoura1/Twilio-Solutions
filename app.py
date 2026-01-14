@@ -639,5 +639,29 @@ def get_calls_stats():
     })
 
 
+# ============== HEALTH CHECK ==============
+
+@app.route("/health", methods=['GET'])
+def health_check():
+    """
+    Health check endpoint for Docker/Railway
+    ---
+    tags:
+      - System
+    responses:
+      200:
+        description: Service is healthy
+    """
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+
+
+# ============== MAIN ==============
+
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Development only - production uses Gunicorn
+    debug_mode = os.environ.get('FLASK_ENV', 'production') == 'development'
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)

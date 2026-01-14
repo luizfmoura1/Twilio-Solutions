@@ -1,0 +1,49 @@
+# ==========================================
+# Docker Compose - Local Development
+# ==========================================
+# Usage: docker-compose up --build
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - FLASK_ENV=development
+    env_file:
+      - .env
+    volumes:
+      # Mount for hot reload in development (optional)
+      # - .:/app
+      # Persist SQLite database
+      - ./instance:/app/instance
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # PostgreSQL for local testing (optional)
+  # Uncomment to use PostgreSQL locally instead of SQLite
+  # db:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_USER: twilio
+  #     POSTGRES_PASSWORD: twilio_dev
+  #     POSTGRES_DB: twilio_app
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U twilio -d twilio_app"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+# volumes:
+#   postgres_data:
