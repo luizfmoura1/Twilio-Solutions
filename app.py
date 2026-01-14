@@ -65,8 +65,8 @@ app.register_blueprint(auth_bp, url_prefix='/auth')
 # Twilio client
 client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
-# Initialize alerts
-init_alerts(client)
+# Initialize alerts (Slack only)
+init_alerts()
 
 
 # ============== TWILIO WEBHOOKS (with signature validation) ==============

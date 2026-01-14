@@ -1,11 +1,10 @@
 """
-Alerts module for sending notifications to Slack and WhatsApp.
+Alerts module for sending notifications to Slack.
 """
 import logging
 from typing import Optional
 from dataclasses import dataclass
 import httpx
-from twilio.rest import Client
 
 from core.config import Config
 
@@ -195,93 +194,15 @@ class SlackNotifier:
             return False
 
 
-class WhatsAppNotifier:
-    """Send notifications via Twilio WhatsApp."""
-
-    def __init__(self, twilio_client: Client, from_number: str, to_number: str):
-        self.client = twilio_client
-        self.from_number = from_number  # Format: whatsapp:+14155238886
-        self.to_number = to_number      # Format: whatsapp:+5511999999999
-        self.enabled = bool(from_number and to_number)
-
-    def _format_number(self, number: str) -> str:
-        """Ensure number has whatsapp: prefix."""
-        if not number.startswith('whatsapp:'):
-            return f"whatsapp:{number}"
-        return number
-
-    def send_call_alert(self, alert: CallAlert) -> bool:
-        """Send call status alert via WhatsApp."""
-        if not self.enabled:
-            logger.debug("WhatsApp notifications disabled - numbers not configured")
-            return False
-
-        duration_str = f"{alert.duration}s" if alert.duration > 0 else "N/A"
-        display_status = alert.disposition if alert.disposition else alert.status
-        display_state = alert.lead_state if alert.lead_state else 'Unknown'
-
-        message = (
-            f"*Call Alert*\n\n"
-            f"Status: {display_status}\n"
-            f"From: {alert.from_number}\n"
-            f"To: {alert.to_number}\n"
-            f"Duration: {duration_str}\n"
-            f"State: {display_state}\n"
-            f"\nCall SID: {alert.call_sid}"
-        )
-
-        if alert.recording_url:
-            message += f"\n\nRecording: {alert.recording_url}"
-
-        try:
-            msg = self.client.messages.create(
-                body=message,
-                from_=self._format_number(self.from_number),
-                to=self._format_number(self.to_number)
-            )
-            logger.info(f"WhatsApp alert sent for call {alert.call_sid}: {msg.sid}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send WhatsApp alert: {e}")
-            return False
-
-    def send_custom_message(self, message: str) -> bool:
-        """Send a custom message via WhatsApp."""
-        if not self.enabled:
-            return False
-
-        try:
-            msg = self.client.messages.create(
-                body=message,
-                from_=self._format_number(self.from_number),
-                to=self._format_number(self.to_number)
-            )
-            logger.info(f"WhatsApp message sent: {msg.sid}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send WhatsApp message: {e}")
-            return False
-
-
 class AlertManager:
     """
     Central manager for all notification channels.
-    Coordinates sending alerts to Slack and WhatsApp based on configuration.
+    Coordinates sending alerts to Slack based on configuration.
     """
 
-    def __init__(self, twilio_client: Optional[Client] = None):
+    def __init__(self):
         # Initialize Slack notifier
         self.slack = SlackNotifier(Config.SLACK_WEBHOOK_URL)
-
-        # Initialize WhatsApp notifier
-        if twilio_client:
-            self.whatsapp = WhatsAppNotifier(
-                twilio_client,
-                Config.WHATSAPP_FROM_NUMBER,
-                Config.WHATSAPP_TO_NUMBER
-            )
-        else:
-            self.whatsapp = None
 
         # Load alert preferences from config
         self.alert_on_initiated = Config.ALERT_ON_INITIATED
@@ -322,7 +243,7 @@ class AlertManager:
         Send call status notifications to all configured channels.
         Returns dict with results for each channel.
         """
-        results = {'slack': False, 'whatsapp': False}
+        results = {'slack': False}
 
         if not self.should_alert(alert.status):
             logger.debug(f"Skipping alert for status: {alert.status}")
@@ -332,15 +253,11 @@ class AlertManager:
         if self.slack.enabled:
             results['slack'] = self.slack.send_call_alert(alert)
 
-        # Send to WhatsApp
-        if self.whatsapp and self.whatsapp.enabled:
-            results['whatsapp'] = self.whatsapp.send_call_alert(alert)
-
         return results
 
     def notify_recording_ready(self, alert: CallAlert) -> dict:
         """Send notification when recording is ready."""
-        results = {'slack': False, 'whatsapp': False}
+        results = {'slack': False}
 
         if not self.alert_on_recording:
             return results
@@ -352,21 +269,14 @@ class AlertManager:
         if self.slack.enabled:
             results['slack'] = self.slack.send_call_alert(alert)
 
-        # Send to WhatsApp
-        if self.whatsapp and self.whatsapp.enabled:
-            results['whatsapp'] = self.whatsapp.send_call_alert(alert)
-
         return results
 
     def send_custom_alert(self, message: str, title: str = "Alert") -> dict:
         """Send a custom alert to all channels."""
-        results = {'slack': False, 'whatsapp': False}
+        results = {'slack': False}
 
         if self.slack.enabled:
             results['slack'] = self.slack.send_custom_message(message, title)
-
-        if self.whatsapp and self.whatsapp.enabled:
-            results['whatsapp'] = self.whatsapp.send_custom_message(message)
 
         return results
 
@@ -380,12 +290,9 @@ def get_alert_manager() -> Optional[AlertManager]:
     return _alert_manager
 
 
-def init_alerts(twilio_client: Client) -> AlertManager:
-    """Initialize the global AlertManager with Twilio client."""
+def init_alerts() -> AlertManager:
+    """Initialize the global AlertManager."""
     global _alert_manager
-    _alert_manager = AlertManager(twilio_client)
-    logger.info(
-        f"AlertManager initialized - Slack: {_alert_manager.slack.enabled}, "
-        f"WhatsApp: {_alert_manager.whatsapp.enabled if _alert_manager.whatsapp else False}"
-    )
+    _alert_manager = AlertManager()
+    logger.info(f"AlertManager initialized - Slack: {_alert_manager.slack.enabled}")
     return _alert_manager
