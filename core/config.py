@@ -16,6 +16,15 @@ def get_jwt_secret():
     return secret
 
 
+def get_database_url():
+    """Get database URL, fixing postgres:// to postgresql:// for SQLAlchemy."""
+    url = os.environ.get('DATABASE_URL', 'sqlite:///twilio_app.db')
+    # Railway/Heroku use postgres:// but SQLAlchemy needs postgresql://
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    return url
+
+
 class Config:
     # Twilio
     TWILIO_ACCOUNT_SID: str = os.environ.get('TWILIO_ACCOUNT_SID', '')
@@ -26,7 +35,7 @@ class Config:
     BASE_URL: str = os.environ.get('BASE_URL', '')
 
     # Database
-    SQLALCHEMY_DATABASE_URI: str = os.environ.get('DATABASE_URL', 'sqlite:///twilio_app.db')
+    SQLALCHEMY_DATABASE_URI: str = get_database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
 
     # JWT
