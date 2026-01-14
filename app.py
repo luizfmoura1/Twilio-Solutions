@@ -289,15 +289,18 @@ def taskrouter_event():
 
         if call_sid:
             # Start recording when call is answered
-            try:
-                client.calls(call_sid).recordings.create(
-                    recording_channels='dual',
-                    recording_status_callback=f"{Config.BASE_URL}/recording_status",
-                    recording_status_callback_event=['completed']
-                )
-                print(f"[RECORDING] Started recording for call {call_sid}")
-            except Exception as e:
-                print(f"[RECORDING ERROR] Failed to start recording for {call_sid}: {e}")
+            if client is not None:
+                try:
+                    client.calls(call_sid).recordings.create(
+                        recording_channels='dual',
+                        recording_status_callback=f"{Config.BASE_URL}/recording_status",
+                        recording_status_callback_event=['completed']
+                    )
+                    print(f"[RECORDING] Started recording for call {call_sid}")
+                except Exception as e:
+                    print(f"[RECORDING ERROR] Failed to start recording for {call_sid}: {e}")
+            else:
+                print(f"[RECORDING ERROR] Twilio client is not initialized. Cannot start recording for {call_sid}")
 
         if call:
             call.answered_at = datetime.now(timezone.utc)
@@ -516,6 +519,9 @@ def make_call():
 
     if not to_number:
         return jsonify({"error": "Missing 'to' parameter"}), 400
+
+    if client is None:
+        return jsonify({"error": "Twilio client is not initialized"}), 500
 
     try:
         # Criar chamada via Twilio com todos os callbacks
