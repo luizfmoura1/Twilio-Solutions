@@ -96,6 +96,31 @@ except Exception as e:
 print("[STARTUP] App initialization complete")
 
 
+# ============== HELPER FUNCTIONS ==============
+
+def _calculate_duration(call):
+    """
+    Calculate call duration based on timestamps.
+    For answered calls: ended_at - answered_at (talk time)
+    For unanswered calls: ended_at - started_at (total time)
+    Returns 0 if timestamps are missing or result is negative.
+    """
+    if not call.ended_at:
+        return 0
+
+    if call.answered_at:
+        # Answered call: duration = talk time
+        duration = int((call.ended_at - call.answered_at).total_seconds())
+    elif call.started_at:
+        # Unanswered call: duration = total time
+        duration = int((call.ended_at - call.started_at).total_seconds())
+    else:
+        return 0
+
+    # Never return negative values
+    return max(duration, 0)
+
+
 # ============== TWILIO WEBHOOKS (with signature validation) ==============
 
 @app.route("/voice", methods=['POST'])
@@ -342,8 +367,11 @@ def taskrouter_event():
             call.ended_at = datetime.now(timezone.utc)
             if not call.disposition:
                 call.disposition = 'completed'
+            # Calculate duration if not already set
+            if not call.duration or call.duration == 0:
+                call.duration = _calculate_duration(call)
             db.session.commit()
-            print(f"[TASK COMPLETED] Call {call.call_sid} marked as completed")
+            print(f"[TASK COMPLETED] Call {call.call_sid} marked as completed - Duration: {call.duration}s")
 
     return '', 204
 
@@ -389,33 +417,45 @@ def call_status():
         db.session.add(call)
 
     # Atualiza campos baseado no status
-    call_duration = int(duration) if duration else 0
+    twilio_duration = int(duration) if duration else 0
 
     if status == 'completed':
         call.ended_at = datetime.now(timezone.utc)
-        call.duration = call_duration
         # Só é "answered" se o agente atendeu (answered_at foi setado pelo /assignment)
         if call.answered_at:
             call.disposition = 'answered'
+            # Duration = tempo de conversa (ended_at - answered_at)
+            calculated_duration = int((call.ended_at - call.answered_at).total_seconds())
         else:
             # Agente não atendeu = Missed Call
             call.disposition = 'no-answer'
+            # Duration = tempo total (ended_at - started_at)
+            if call.started_at:
+                calculated_duration = int((call.ended_at - call.started_at).total_seconds())
+            else:
+                calculated_duration = 0
+        # Use o maior valor entre calculado e Twilio (fallback)
+        call.duration = max(calculated_duration, twilio_duration, 0)
     elif status == 'busy':
         call.ended_at = datetime.now(timezone.utc)
         call.disposition = 'busy'
+        call.duration = _calculate_duration(call)
     elif status == 'no-answer':
         call.ended_at = datetime.now(timezone.utc)
         call.disposition = 'no-answer'
+        call.duration = _calculate_duration(call)
     elif status == 'failed':
         call.ended_at = datetime.now(timezone.utc)
         call.disposition = 'failed'
+        call.duration = _calculate_duration(call)
     elif status == 'canceled':
         call.ended_at = datetime.now(timezone.utc)
         call.disposition = 'canceled'
+        call.duration = _calculate_duration(call)
 
     db.session.commit()
 
-    print(f"[STATUS] Call {call_sid}: {status} | Disposition: {call.disposition} | Duration: {duration}s")
+    print(f"[STATUS] Call {call_sid}: {status} | Disposition: {call.disposition} | Duration: {call.duration}s (Twilio sent: {twilio_duration}s)")
 
     # Send alerts for status changes (only for terminal statuses)
     alert_manager = get_alert_manager()
@@ -427,7 +467,7 @@ def call_status():
             from_number=from_number,
             to_number=to_number,
             status=alert_status,
-            duration=int(duration) if duration else 0,
+            duration=call.duration or 0,
             disposition=call.disposition,
             lead_state=call.lead_state,
             recording_url=call.recording_url,
