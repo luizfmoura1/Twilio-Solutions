@@ -63,3 +63,8 @@ class Config:
         'AMD_VOICEMAIL_MESSAGE',
         'Hello, this is an automated message. We tried to reach you but got your voicemail. Please call us back at your earliest convenience. Thank you.'
     )
+
+    # Caller ID Rotation - números por estado
+    CALLER_ID_FL: str = os.environ.get('CALLER_ID_FL', '+13212700236')  # Florida
+    CALLER_ID_TX: str = os.environ.get('CALLER_ID_TX', '+17269003839')  # Texas
+    CALLER_ID_DEFAULT: str = os.environ.get('CALLER_ID_DEFAULT', '+18336411602')  # Toll-free (outros estados)

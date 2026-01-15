@@ -10,7 +10,7 @@ from flasgger import Swagger
 
 from core.config import Config
 from core.database import db, init_db
-from core.phone_utils import get_state_from_phone
+from core.phone_utils import get_state_from_phone, get_caller_id_for_number
 from core.alerts import init_alerts, get_alert_manager, CallAlert
 from models.call import Call
 from auth.routes import auth_bp
@@ -681,11 +681,17 @@ def make_call():
         return jsonify({"error": "Twilio client is not initialized"}), 500
 
     try:
+        # Seleciona Caller ID baseado no estado do lead
+        caller_id = get_caller_id_for_number(to_number)
+        lead_state = get_state_from_phone(to_number)
+
+        print(f"[CALLER ID] Lead state: {lead_state} → Using: {caller_id}")
+
         # Parâmetros base da chamada
         call_params = {
             'url': f"{Config.BASE_URL}/outbound_connect",
             'to': to_number,
-            'from_': Config.TWILIO_NUMBER,
+            'from_': caller_id,
             'record': True,
             'recording_channels': 'dual',
             'recording_status_callback': f"{Config.BASE_URL}/recording_status",
@@ -706,10 +712,9 @@ def make_call():
         twilio_call = client.calls.create(**call_params)
 
         # Salvar chamada no banco
-        lead_state = get_state_from_phone(to_number)
         call_record = Call(
             call_sid=twilio_call.sid,
-            from_number=Config.TWILIO_NUMBER,
+            from_number=caller_id,
             to_number=to_number,
             lead_state=lead_state,
             direction='outbound',

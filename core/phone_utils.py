@@ -160,3 +160,29 @@ def format_phone_number(phone_number: str) -> str:
         return f'+{digits}'
 
     return phone_number
+
+
+def get_caller_id_for_number(to_number: str) -> str:
+    """
+    Get the appropriate Caller ID based on the destination number's state.
+
+    - Florida leads → Florida number
+    - Texas leads → Texas number
+    - Other states → Toll-free number
+
+    Args:
+        to_number: Destination phone number
+
+    Returns:
+        Caller ID to use for the call
+    """
+    from core.config import Config
+
+    state = get_state_from_phone(to_number)
+
+    if state == 'FL':
+        return Config.CALLER_ID_FL
+    elif state == 'TX':
+        return Config.CALLER_ID_TX
+    else:
+        return Config.CALLER_ID_DEFAULT
