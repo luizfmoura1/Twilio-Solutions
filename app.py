@@ -112,18 +112,19 @@ def voice():
     existing_call = Call.query.filter_by(call_sid=call_sid).first()
     if not existing_call:
         lead_state = get_state_from_phone(from_number)
+        caller_city = request.form.get('FromCity', '')
         call = Call(
             call_sid=call_sid,
             from_number=from_number,
             to_number=to_number,
             lead_state=lead_state,
             direction=direction,
-            status='ringing',
+            caller_city=caller_city,
             started_at=datetime.now(timezone.utc)
         )
         db.session.add(call)
         db.session.commit()
-        print(f"[INBOUND] New call {call_sid} from {from_number} - State: {lead_state}")
+        print(f"[INBOUND] New call {call_sid} from {from_number} ({caller_city}) - State: {lead_state}")
 
         # Send "Incoming Call" alert
         alert_manager = get_alert_manager()
@@ -233,7 +234,6 @@ def taskrouter_event():
                     to_number=to_number,
                     lead_state=lead_state,
                     direction='outbound',
-                    status='initiated',
                     started_at=datetime.now(timezone.utc)
                 )
                 db.session.add(call)
@@ -306,7 +306,10 @@ def taskrouter_event():
             call.answered_at = datetime.now(timezone.utc)
             call.disposition = 'answered'
             call.worker_name = worker_name
-            call.status = 'in-progress'
+            # Calculate queue_time (time from started_at to answered_at)
+            if call.started_at:
+                queue_seconds = (call.answered_at - call.started_at).total_seconds()
+                call.queue_time = int(queue_seconds)
             db.session.commit()
 
             # Send "Call Answered" alert
@@ -337,7 +340,6 @@ def taskrouter_event():
 
         if call and not call.ended_at:
             call.ended_at = datetime.now(timezone.utc)
-            call.status = 'completed'
             if not call.disposition:
                 call.disposition = 'completed'
             db.session.commit()
@@ -373,6 +375,7 @@ def call_status():
         # Determina o número do lead (depende da direção)
         lead_number = from_number if direction == 'inbound' else to_number
         lead_state = get_state_from_phone(lead_number)
+        caller_city = request.form.get('FromCity', '') if direction == 'inbound' else ''
 
         call = Call(
             call_sid=call_sid,
@@ -380,13 +383,10 @@ def call_status():
             to_number=to_number,
             lead_state=lead_state,
             direction=direction,
-            status=status,
+            caller_city=caller_city,
             started_at=datetime.now(timezone.utc)
         )
         db.session.add(call)
-    else:
-        # Atualiza status existente
-        call.status = status
 
     # Atualiza campos baseado no status
     call_duration = int(duration) if duration else 0
@@ -417,11 +417,11 @@ def call_status():
 
     print(f"[STATUS] Call {call_sid}: {status} | Disposition: {call.disposition} | Duration: {duration}s")
 
-    # Send alerts for all status changes
+    # Send alerts for status changes (only for terminal statuses)
     alert_manager = get_alert_manager()
-    if alert_manager:
-        # Use disposition for final status display (e.g., no-answer instead of completed)
-        alert_status = call.disposition if status == 'completed' and call.disposition else status
+    if alert_manager and status in ('completed', 'busy', 'no-answer', 'failed', 'canceled'):
+        # Use disposition for alert status
+        alert_status = call.disposition or status
         alert = CallAlert(
             call_sid=call_sid,
             from_number=from_number,
@@ -467,7 +467,7 @@ def recording_status():
                     call_sid=call_sid,
                     from_number=call.from_number,
                     to_number=call.to_number,
-                    status=call.status or 'completed',
+                    status=call.disposition or 'completed',
                     duration=call.duration or 0,
                     disposition=call.disposition,
                     lead_state=call.lead_state,
@@ -537,7 +537,7 @@ def make_call():
             status_callback_event=['initiated', 'ringing', 'in-progress', 'completed', 'busy', 'no-answer', 'canceled', 'failed']
         )
 
-        # Salvar chamada no banco com agent_id
+        # Salvar chamada no banco
         lead_state = get_state_from_phone(to_number)
         call_record = Call(
             call_sid=twilio_call.sid,
@@ -545,8 +545,6 @@ def make_call():
             to_number=to_number,
             lead_state=lead_state,
             direction='outbound',
-            status='initiated',
-            agent_id=g.current_user_id,
             started_at=datetime.now(timezone.utc)
         )
         db.session.add(call_record)
@@ -554,8 +552,7 @@ def make_call():
 
         return jsonify({
             "call_sid": twilio_call.sid,
-            "status": "initiated",
-            "agent_id": g.current_user_id
+            "message": "Call initiated"
         })
 
     except Exception as e:
@@ -578,11 +575,11 @@ def get_calls():
         type: string
         required: false
         description: Filtrar por estado (ex CA, TX, NY)
-      - name: status
+      - name: disposition
         in: query
         type: string
         required: false
-        description: Filtrar por status (completed, answered, no-answer, busy, failed)
+        description: Filtrar por disposition (answered, no-answer, busy, failed, completed, canceled)
       - name: direction
         in: query
         type: string
@@ -608,7 +605,7 @@ def get_calls():
     """
     # Parâmetros de filtro
     state = request.args.get('state')  # Filtrar por estado (ex: CA, TX)
-    status = request.args.get('status')  # Filtrar por status (completed, answered, etc.)
+    disposition = request.args.get('disposition')  # Filtrar por disposition (answered, no-answer, etc.)
     direction = request.args.get('direction')  # inbound ou outbound
     limit = request.args.get('limit', 50, type=int)  # Limite de resultados
 
@@ -618,8 +615,8 @@ def get_calls():
     # Aplicar filtros
     if state:
         query = query.filter(Call.lead_state == state.upper())
-    if status:
-        query = query.filter(Call.status == status)
+    if disposition:
+        query = query.filter(Call.disposition == disposition)
     if direction:
         query = query.filter(Call.direction == direction)
 
