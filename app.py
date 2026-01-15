@@ -523,6 +523,123 @@ def recording_status():
     return '', 204
 
 
+# ============== AMD (Answering Machine Detection) ==============
+
+@app.route("/outbound_connect", methods=['POST'])
+@validate_twilio_signature
+def outbound_connect():
+    """
+    TwiML inicial para chamadas outbound.
+    Se AMD estiver habilitado, a chamada aguarda a detecção.
+    Se humano atender, conecta ao agente via enqueue.
+    """
+    response = VoiceResponse()
+
+    # Se AMD não estiver habilitado, conecta direto ao fluxo normal
+    if not Config.AMD_ENABLED:
+        response.say(
+            "This call is being recorded for your security and quality assurance.",
+            language='en-US',
+            voice='Polly.Joanna'
+        )
+        response.enqueue(
+            None,
+            workflow_sid=Config.TWILIO_WORKFLOW_SID,
+            wait_url=f"{Config.BASE_URL}/wait"
+        )
+    else:
+        # Com AMD: apenas um silêncio breve enquanto a detecção acontece
+        # O /amd_status vai redirecionar a chamada baseado no resultado
+        response.pause(length=1)
+        response.say(
+            "This call is being recorded for your security and quality assurance.",
+            language='en-US',
+            voice='Polly.Joanna'
+        )
+        response.enqueue(
+            None,
+            workflow_sid=Config.TWILIO_WORKFLOW_SID,
+            wait_url=f"{Config.BASE_URL}/wait"
+        )
+
+    return str(response), 200, {'Content-Type': 'application/xml'}
+
+
+@app.route("/amd_status", methods=['POST'])
+@validate_twilio_signature
+def amd_status():
+    """
+    Callback do AMD (Answering Machine Detection).
+    Quando detecta caixa postal: deixa mensagem e desliga.
+    Quando detecta humano: deixa a chamada continuar normalmente.
+    """
+    call_sid = request.form.get('CallSid', '')
+    answered_by = request.form.get('AnsweredBy', '')
+    machine_detection_duration = request.form.get('MachineDetectionDuration', '0')
+
+    print(f"[AMD] CallSid={call_sid}, AnsweredBy={answered_by}, Duration={machine_detection_duration}ms")
+
+    # Valores possíveis de AnsweredBy:
+    # - human: Humano atendeu
+    # - machine_start: Máquina detectada (início da mensagem)
+    # - machine_end_beep: Máquina detectada (após o beep - pronto para gravar)
+    # - machine_end_silence: Máquina detectada (silêncio após mensagem)
+    # - machine_end_other: Máquina detectada (outro)
+    # - fax: Fax detectado
+    # - unknown: Não conseguiu determinar
+
+    is_machine = answered_by in ('machine_start', 'machine_end_beep', 'machine_end_silence', 'machine_end_other')
+
+    if is_machine and call_sid:
+        print(f"[AMD] Voicemail detected for {call_sid} - Leaving message and hanging up")
+
+        # Atualiza o banco com disposition 'voicemail'
+        call = Call.query.filter_by(call_sid=call_sid).first()
+        if call:
+            call.disposition = 'voicemail'
+            db.session.commit()
+            print(f"[AMD] Updated call {call_sid} disposition to 'voicemail'")
+
+        # Redireciona a chamada para deixar mensagem e desligar
+        if client is not None:
+            try:
+                client.calls(call_sid).update(
+                    url=f"{Config.BASE_URL}/voicemail_message",
+                    method='POST'
+                )
+                print(f"[AMD] Redirected call {call_sid} to voicemail message")
+            except Exception as e:
+                print(f"[AMD ERROR] Failed to redirect call {call_sid}: {e}")
+    else:
+        print(f"[AMD] Human detected for {call_sid} - Call continues normally")
+
+    return '', 204
+
+
+@app.route("/voicemail_message", methods=['POST'])
+@validate_twilio_signature
+def voicemail_message():
+    """
+    TwiML para deixar mensagem na caixa postal e desligar.
+    """
+    call_sid = request.form.get('CallSid', '')
+    print(f"[VOICEMAIL] Playing message for call {call_sid}")
+
+    response = VoiceResponse()
+
+    # Toca a mensagem configurada
+    response.say(
+        Config.AMD_VOICEMAIL_MESSAGE,
+        language='en-US',
+        voice='Polly.Joanna'
+    )
+
+    # Desliga a chamada
+    response.hangup()
+
+    return str(response), 200, {'Content-Type': 'application/xml'}
+
+
 # ============== API ENDPOINTS (with JWT authentication) ==============
 
 @app.route("/make_call", methods=['POST'])
@@ -564,18 +681,29 @@ def make_call():
         return jsonify({"error": "Twilio client is not initialized"}), 500
 
     try:
-        # Criar chamada via Twilio com todos os callbacks
-        twilio_call = client.calls.create(
-            url=f"{Config.BASE_URL}/voice",
-            to=to_number,
-            from_=Config.TWILIO_NUMBER,
-            record=True,
-            recording_channels='dual',
-            recording_status_callback=f"{Config.BASE_URL}/recording_status",
-            recording_status_callback_event=['completed'],
-            status_callback=f"{Config.BASE_URL}/call_status",
-            status_callback_event=['initiated', 'ringing', 'in-progress', 'completed', 'busy', 'no-answer', 'canceled', 'failed']
-        )
+        # Parâmetros base da chamada
+        call_params = {
+            'url': f"{Config.BASE_URL}/outbound_connect",
+            'to': to_number,
+            'from_': Config.TWILIO_NUMBER,
+            'record': True,
+            'recording_channels': 'dual',
+            'recording_status_callback': f"{Config.BASE_URL}/recording_status",
+            'recording_status_callback_event': ['completed'],
+            'status_callback': f"{Config.BASE_URL}/call_status",
+            'status_callback_event': ['initiated', 'ringing', 'in-progress', 'completed', 'busy', 'no-answer', 'canceled', 'failed']
+        }
+
+        # Adiciona AMD se habilitado
+        if Config.AMD_ENABLED:
+            call_params['machine_detection'] = 'DetectMessageEnd'
+            call_params['machine_detection_timeout'] = 30
+            call_params['async_amd'] = True
+            call_params['async_amd_status_callback'] = f"{Config.BASE_URL}/amd_status"
+            call_params['async_amd_status_callback_method'] = 'POST'
+
+        # Criar chamada via Twilio
+        twilio_call = client.calls.create(**call_params)
 
         # Salvar chamada no banco
         lead_state = get_state_from_phone(to_number)

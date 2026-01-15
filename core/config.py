@@ -56,3 +56,10 @@ class Config:
     ALERT_ON_MISSED: bool = os.environ.get('ALERT_ON_MISSED', 'true').lower() == 'true'
     ALERT_ON_FAILED: bool = os.environ.get('ALERT_ON_FAILED', 'true').lower() == 'true'
     ALERT_ON_RECORDING: bool = os.environ.get('ALERT_ON_RECORDING', 'false').lower() == 'true'
+
+    # AMD (Answering Machine Detection)
+    AMD_ENABLED: bool = os.environ.get('AMD_ENABLED', 'true').lower() == 'true'
+    AMD_VOICEMAIL_MESSAGE: str = os.environ.get(
+        'AMD_VOICEMAIL_MESSAGE',
+        'Hello, this is an automated message. We tried to reach you but got your voicemail. Please call us back at your earliest convenience. Thank you.'
+    )
