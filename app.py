@@ -12,6 +12,7 @@ from core.config import Config
 from core.database import db, init_db
 from core.phone_utils import get_state_from_phone, get_caller_id_for_number
 from core.alerts import init_alerts, get_alert_manager, CallAlert
+from core.attio import get_attio_client
 from models.call import Call
 from auth.routes import auth_bp
 from auth.decorators import jwt_required, validate_twilio_signature
@@ -840,6 +841,111 @@ def get_calls_stats():
             for stat in stats
         ]
     })
+
+
+# ============== ATTIO CRM INTEGRATION ==============
+
+@app.route("/attio/lead", methods=['GET'])
+@jwt_required
+def get_attio_lead():
+    """
+    Busca dados do lead no Attio pelo número de telefone
+    ---
+    tags:
+      - Attio
+    security:
+      - Bearer: []
+    parameters:
+      - name: phone
+        in: query
+        type: string
+        required: true
+        description: Número de telefone para buscar (formato E.164 ou 10 dígitos)
+    responses:
+      200:
+        description: Dados do lead encontrado
+      404:
+        description: Lead não encontrado
+      500:
+        description: Erro na integração com Attio
+    """
+    phone = request.args.get('phone')
+
+    if not phone:
+        return jsonify({"error": "Missing 'phone' parameter"}), 400
+
+    attio = get_attio_client()
+    if not attio:
+        return jsonify({"error": "Attio integration not configured"}), 500
+
+    try:
+        lead = attio.search_person_by_phone(phone)
+
+        if lead:
+            # Remove raw data from response (too verbose)
+            lead_response = {k: v for k, v in lead.items() if k != 'raw'}
+            print(f"[ATTIO] Found lead for {phone}: {lead_response.get('name', 'Unknown')}")
+            return jsonify({"found": True, "lead": lead_response})
+        else:
+            print(f"[ATTIO] No lead found for {phone}")
+            return jsonify({"found": False, "lead": None}), 404
+
+    except Exception as e:
+        print(f"[ATTIO ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/attio/lead/note", methods=['POST'])
+@jwt_required
+def add_attio_note():
+    """
+    Adiciona uma nota ao lead no Attio (para logar resultado da chamada)
+    ---
+    tags:
+      - Attio
+    security:
+      - Bearer: []
+    parameters:
+      - name: record_id
+        in: formData
+        type: string
+        required: true
+        description: ID do record no Attio
+      - name: note
+        in: formData
+        type: string
+        required: true
+        description: Conteúdo da nota
+    responses:
+      200:
+        description: Nota adicionada com sucesso
+      400:
+        description: Parâmetros ausentes
+      500:
+        description: Erro na integração com Attio
+    """
+    record_id = request.form.get('record_id')
+    note = request.form.get('note')
+
+    if not record_id or not note:
+        return jsonify({"error": "Missing 'record_id' or 'note' parameter"}), 400
+
+    attio = get_attio_client()
+    if not attio:
+        return jsonify({"error": "Attio integration not configured"}), 500
+
+    try:
+        success = attio.add_note_to_person(record_id, note)
+
+        if success:
+            print(f"[ATTIO] Note added to record {record_id}")
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Failed to add note"}), 500
+
+    except Exception as e:
+        print(f"[ATTIO ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ============== MAIN ==============

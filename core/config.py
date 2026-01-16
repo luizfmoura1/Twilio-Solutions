@@ -68,3 +68,6 @@ class Config:
     CALLER_ID_FL: str = os.environ.get('CALLER_ID_FL', '+13212700236')  # Florida
     CALLER_ID_TX: str = os.environ.get('CALLER_ID_TX', '+17269003839')  # Texas
     CALLER_ID_DEFAULT: str = os.environ.get('CALLER_ID_DEFAULT', '+18336411602')  # Toll-free (outros estados)
+
+    # Attio CRM Integration
+    ATTIO_API_KEY: str = os.environ.get('ATTIO_API_KEY', '')
