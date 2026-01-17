@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from flask import Flask, request, jsonify, g
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
+from twilio.jwt.access_token import AccessToken
+from twilio.jwt.access_token.grants import VoiceGrant
 from dotenv import load_dotenv
 from flasgger import Swagger
 
@@ -841,6 +843,87 @@ def get_calls_stats():
             for stat in stats
         ]
     })
+
+
+# ============== TWILIO VOICE SDK TOKEN ==============
+
+@app.route("/token", methods=['GET'])
+@jwt_required
+def get_voice_token():
+    """
+    Gera token para o Twilio Voice SDK (chamadas via navegador)
+    ---
+    tags:
+      - Voice SDK
+    security:
+      - Bearer: []
+    parameters:
+      - name: identity
+        in: query
+        type: string
+        required: false
+        description: Identidade do agente (default usa email do usuário logado)
+    responses:
+      200:
+        description: Token gerado com sucesso
+        schema:
+          properties:
+            token:
+              type: string
+            identity:
+              type: string
+            ttl:
+              type: integer
+      500:
+        description: Erro ao gerar token (credenciais não configuradas)
+    """
+    # Verifica se as credenciais estão configuradas
+    if not all([Config.TWILIO_ACCOUNT_SID, Config.TWILIO_API_KEY, Config.TWILIO_API_SECRET, Config.TWILIO_TWIML_APP_SID]):
+        return jsonify({
+            "error": "Twilio Voice SDK not configured",
+            "missing": [
+                k for k, v in {
+                    "TWILIO_ACCOUNT_SID": Config.TWILIO_ACCOUNT_SID,
+                    "TWILIO_API_KEY": Config.TWILIO_API_KEY,
+                    "TWILIO_API_SECRET": Config.TWILIO_API_SECRET,
+                    "TWILIO_TWIML_APP_SID": Config.TWILIO_TWIML_APP_SID
+                }.items() if not v
+            ]
+        }), 500
+
+    # Identidade do agente (usa email do usuário logado ou parâmetro)
+    identity = request.args.get('identity') or g.current_user.get('email', 'agent')
+    # Remove caracteres especiais da identidade (Twilio requer alfanumérico)
+    identity = ''.join(c for c in identity if c.isalnum() or c in '_-')
+
+    try:
+        # Cria Access Token
+        token = AccessToken(
+            Config.TWILIO_ACCOUNT_SID,
+            Config.TWILIO_API_KEY,
+            Config.TWILIO_API_SECRET,
+            identity=identity,
+            ttl=Config.VOICE_TOKEN_TTL
+        )
+
+        # Adiciona grant de voz
+        voice_grant = VoiceGrant(
+            outgoing_application_sid=Config.TWILIO_TWIML_APP_SID,
+            incoming_allow=True  # Permite receber chamadas
+        )
+        token.add_grant(voice_grant)
+
+        print(f"[TOKEN] Generated voice token for {identity} (TTL: {Config.VOICE_TOKEN_TTL}s)")
+
+        return jsonify({
+            "token": token.to_jwt(),
+            "identity": identity,
+            "ttl": Config.VOICE_TOKEN_TTL
+        })
+
+    except Exception as e:
+        print(f"[TOKEN ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ============== ATTIO CRM INTEGRATION ==============

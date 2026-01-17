@@ -71,3 +71,9 @@ class Config:
 
     # Attio CRM Integration
     ATTIO_API_KEY: str = os.environ.get('ATTIO_API_KEY', '')
+
+    # Twilio Voice SDK (for browser-based calling)
+    TWILIO_TWIML_APP_SID: str = os.environ.get('TWILIO_TWIML_APP_SID', '')
+    TWILIO_API_KEY: str = os.environ.get('TWILIO_API_KEY', '')
+    TWILIO_API_SECRET: str = os.environ.get('TWILIO_API_SECRET', '')
+    VOICE_TOKEN_TTL: int = int(os.environ.get('VOICE_TOKEN_TTL', '86400'))  # 24 hours (max allowed by Twilio)
