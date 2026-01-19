@@ -965,10 +965,15 @@ def get_attio_lead():
         lead = attio.search_person_by_phone(phone)
 
         if lead:
-            # Remove raw data from response (too verbose)
-            lead_response = {k: v for k, v in lead.items() if k != 'raw'}
-            print(f"[ATTIO] Found lead for {phone}: {lead_response.get('name', 'Unknown')}")
-            return jsonify({"found": True, "lead": lead_response})
+            # Include raw if debug param is set
+            if request.args.get('debug') == 'true':
+                print(f"[ATTIO] Found lead for {phone}: {lead.get('name', 'Unknown')} (debug mode)")
+                return jsonify({"found": True, "lead": lead})
+            else:
+                # Remove raw data from response (too verbose)
+                lead_response = {k: v for k, v in lead.items() if k != 'raw'}
+                print(f"[ATTIO] Found lead for {phone}: {lead_response.get('name', 'Unknown')}")
+                return jsonify({"found": True, "lead": lead_response})
         else:
             print(f"[ATTIO] No lead found for {phone}")
             return jsonify({"found": False, "lead": None}), 404
