@@ -107,6 +107,18 @@ class AttioClient:
         """Format Attio person record to simplified dict"""
         values = record.get("values", {})
 
+        def get_value(field_name):
+            """Helper to extract first value from a field"""
+            field_data = values.get(field_name, [])
+            if field_data and len(field_data) > 0:
+                val = field_data[0]
+                # Handle different value types
+                if isinstance(val, dict):
+                    # Try common value keys
+                    return val.get("value") or val.get("option") or val.get("text") or val.get("first_name", "")
+                return val
+            return ""
+
         # Extract name
         name_data = values.get("name", [])
         name = ""
@@ -128,18 +140,23 @@ class AttioClient:
         if phone_data and len(phone_data) > 0:
             phone = phone_data[0].get("phone_number", "")
 
-        # Extract company (if linked)
-        company = ""
-        company_data = values.get("company", [])
-        if company_data and len(company_data) > 0:
-            company = company_data[0].get("target_record_id", "")
+        # Extract custom fields - try multiple possible slug names
+        state = get_value("state") or get_value("lead_state") or get_value("location_state")
+        case_type = get_value("case_type") or get_value("casetype") or get_value("type")
+        classification = get_value("classification") or get_value("lead_classification")
+        description = get_value("description") or get_value("case_description") or get_value("notes")
+        attorney_info = get_value("attorney_info") or get_value("attorney") or get_value("attorney_information")
 
         return {
             "id": record.get("id", {}).get("record_id", ""),
             "name": name,
             "email": email,
             "phone": phone,
-            "company": company,
+            "state": state,
+            "case_type": case_type,
+            "classification": classification,
+            "description": description,
+            "attorney_info": attorney_info,
             "raw": record  # Include raw data for debugging
         }
 
