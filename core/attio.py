@@ -140,12 +140,16 @@ class AttioClient:
         if phone_data and len(phone_data) > 0:
             phone = phone_data[0].get("phone_number", "")
 
-        # Extract custom fields - try multiple possible slug names
-        state = get_value("state") or get_value("lead_state") or get_value("location_state")
-        case_type = get_value("case_type") or get_value("casetype") or get_value("type")
-        classification = get_value("classification") or get_value("lead_classification")
-        description = get_value("description") or get_value("case_description") or get_value("notes")
-        attorney_info = get_value("attorney_info") or get_value("attorney") or get_value("attorney_information")
+        # Extract custom fields
+        state = get_value("state")
+        case_type = get_value("case_type")
+        classification = get_value("classification")
+        description = get_value("case_description") or get_value("description")
+        attorney_info = get_value("attoney_info")  # Note: typo in Attio field name
+        has_attorney = get_value("attorney")
+        city = get_value("city")
+        advance_seeking = get_value("advance_seeking")
+        workers_comp = get_value("workers_comp")
 
         return {
             "id": record.get("id", {}).get("record_id", ""),
@@ -153,10 +157,14 @@ class AttioClient:
             "email": email,
             "phone": phone,
             "state": state,
+            "city": city,
             "case_type": case_type,
             "classification": classification,
             "description": description,
             "attorney_info": attorney_info,
+            "has_attorney": has_attorney,
+            "advance_seeking": advance_seeking,
+            "workers_comp": workers_comp,
             "raw": record  # Include raw data for debugging
         }
 
