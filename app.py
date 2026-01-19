@@ -892,7 +892,7 @@ def get_voice_token():
         }), 500
 
     # Identidade do agente (usa email do usuário logado ou parâmetro)
-    identity = request.args.get('identity') or g.current_user.get('email', 'agent')
+    identity = request.args.get('identity') or g.current_user_email or 'agent'
     # Remove caracteres especiais da identidade (Twilio requer alfanumérico)
     identity = ''.join(c for c in identity if c.isalnum() or c in '_-')
 
