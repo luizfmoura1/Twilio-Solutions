@@ -579,6 +579,47 @@ def recording_status():
     return '', 204
 
 
+@app.route("/recording/<recording_sid>", methods=['GET'])
+@jwt_required
+def get_recording(recording_sid):
+    """
+    Proxy para acessar gravações do Twilio sem expor credenciais.
+    Busca a gravação no Twilio e retorna o áudio.
+    """
+    import requests
+
+    if not recording_sid:
+        return jsonify({"error": "Missing recording_sid"}), 400
+
+    try:
+        # URL da gravação no Twilio
+        recording_url = f"https://api.twilio.com/2010-04-01/Accounts/{Config.TWILIO_ACCOUNT_SID}/Recordings/{recording_sid}.mp3"
+
+        # Busca com autenticação
+        response = requests.get(
+            recording_url,
+            auth=(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN),
+            stream=True
+        )
+
+        if response.status_code == 200:
+            from flask import Response
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='audio/mpeg',
+                headers={
+                    'Content-Disposition': f'inline; filename="{recording_sid}.mp3"'
+                }
+            )
+        else:
+            print(f"[RECORDING PROXY] Failed to fetch {recording_sid}: {response.status_code}")
+            return jsonify({"error": "Recording not found"}), 404
+
+    except Exception as e:
+        print(f"[RECORDING PROXY ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ============== AMD (Answering Machine Detection) ==============
 
 @app.route("/outbound_connect", methods=['POST'])
