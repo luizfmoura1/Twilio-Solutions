@@ -3,7 +3,8 @@ import json
 import logging
 from datetime import datetime, timezone
 from flask import Flask, request, jsonify, g
-from twilio.twiml.voice_response import VoiceResponse
+from typing import cast
+from twilio.twiml.voice_response import VoiceResponse, Dial
 from twilio.rest import Client
 from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
@@ -178,12 +179,12 @@ def voice():
                 db.session.commit()
 
             # Dial the destination number
-            dial = response.dial(
+            dial = cast(Dial, response.dial(
                 caller_id=caller_id,
                 record='record-from-answer-dual',
                 recording_status_callback=f"{Config.BASE_URL}/recording_status",
                 recording_status_callback_event='completed'
-            )
+            ))
             dial.number(dest_number)
         else:
             response.say("Invalid destination number.", language='en-US', voice='Polly.Joanna')
