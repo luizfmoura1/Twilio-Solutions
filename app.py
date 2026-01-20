@@ -31,7 +31,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Enable CORS for all routes (allows Lovable frontend to access API)
-CORS(app, origins=["https://*.lovableproject.com", "https://*.lovable.app", "http://localhost:*"], supports_credentials=True)
+CORS(app)
 print("[STARTUP] CORS enabled")
 
 # ============== HEALTH CHECK (registered first!) ==============
