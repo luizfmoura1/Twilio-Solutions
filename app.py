@@ -9,6 +9,7 @@ from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
 from dotenv import load_dotenv
 from flasgger import Swagger
+from flask_cors import CORS
 
 from core.config import Config
 from core.database import db, init_db
@@ -28,6 +29,10 @@ load_dotenv()
 print("[STARTUP] Creating Flask app...")
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Enable CORS for all routes (allows Lovable frontend to access API)
+CORS(app, origins=["https://*.lovableproject.com", "https://*.lovable.app", "http://localhost:*"], supports_credentials=True)
+print("[STARTUP] CORS enabled")
 
 # ============== HEALTH CHECK (registered first!) ==============
 @app.route("/health", methods=['GET'])
