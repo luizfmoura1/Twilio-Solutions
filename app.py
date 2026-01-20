@@ -134,59 +134,107 @@ def _calculate_duration(call):
 @app.route("/voice", methods=['POST'])
 @validate_twilio_signature
 def voice():
-    """Atende chamada: toca disclaimer e enfileira"""
-    # Captura dados da chamada inbound
+    """
+    Handle voice calls:
+    - Outbound from browser (Lovable): Dial to the destination number
+    - Inbound to Twilio number: Play disclaimer and enqueue
+    """
     call_sid = request.form.get('CallSid', '')
     from_number = request.form.get('From', '')
     to_number = request.form.get('To', '')
-    direction = request.form.get('Direction', 'inbound')
 
-    # Salva chamada no banco
-    existing_call = Call.query.filter_by(call_sid=call_sid).first()
-    if not existing_call:
-        lead_state = get_state_from_phone(from_number)
-        caller_city = request.form.get('FromCity', '')
-        call = Call(
-            call_sid=call_sid,
-            from_number=from_number,
-            to_number=to_number,
-            lead_state=lead_state,
-            direction=direction,
-            caller_city=caller_city,
-            started_at=datetime.now(timezone.utc)
-        )
-        db.session.add(call)
-        db.session.commit()
-        print(f"[INBOUND] New call {call_sid} from {from_number} ({caller_city}) - State: {lead_state}")
-
-        # Send "Incoming Call" alert
-        alert_manager = get_alert_manager()
-        if alert_manager:
-            alert = CallAlert(
-                call_sid=call_sid,
-                from_number=from_number,
-                to_number=to_number,
-                status='ringing',
-                duration=0,
-                lead_state=lead_state,
-                direction='inbound'
-            )
-            alert_manager.notify_call_status(alert)
-
+    # Check if this is an outbound call from browser (client:identity)
+    # Browser calls have From starting with "client:"
+    is_browser_call = from_number.startswith('client:')
 
     response = VoiceResponse()
 
-    response.say(
-        "This call is being recorded for your security and quality assurance.",
-        language='en-US',
-        voice='Polly.Joanna'
-    )
+    if is_browser_call:
+        # ========== OUTBOUND CALL FROM BROWSER ==========
+        print(f"[BROWSER CALL] From: {from_number}, To: {to_number}")
 
-    response.enqueue(
-        None,
-        workflow_sid=Config.TWILIO_WORKFLOW_SID,
-        wait_url=f"{Config.BASE_URL}/wait"
-    )
+        # Get the destination number from params
+        dest_number = request.form.get('To', '')
+
+        if dest_number and dest_number.startswith('+'):
+            # Select Caller ID based on destination state
+            caller_id = get_caller_id_for_number(dest_number)
+            lead_state = get_state_from_phone(dest_number)
+
+            print(f"[BROWSER CALL] Dialing {dest_number} with Caller ID {caller_id} (State: {lead_state})")
+
+            # Save call to database
+            existing_call = Call.query.filter_by(call_sid=call_sid).first()
+            if not existing_call:
+                call = Call(
+                    call_sid=call_sid,
+                    from_number=caller_id,
+                    to_number=dest_number,
+                    lead_state=lead_state,
+                    direction='outbound',
+                    started_at=datetime.now(timezone.utc)
+                )
+                db.session.add(call)
+                db.session.commit()
+
+            # Dial the destination number
+            dial = response.dial(
+                caller_id=caller_id,
+                record='record-from-answer-dual',
+                recording_status_callback=f"{Config.BASE_URL}/recording_status",
+                recording_status_callback_event='completed'
+            )
+            dial.number(dest_number)
+        else:
+            response.say("Invalid destination number.", language='en-US', voice='Polly.Joanna')
+            response.hangup()
+    else:
+        # ========== INBOUND CALL ==========
+        direction = request.form.get('Direction', 'inbound')
+
+        # Save call to database
+        existing_call = Call.query.filter_by(call_sid=call_sid).first()
+        if not existing_call:
+            lead_state = get_state_from_phone(from_number)
+            caller_city = request.form.get('FromCity', '')
+            call = Call(
+                call_sid=call_sid,
+                from_number=from_number,
+                to_number=to_number,
+                lead_state=lead_state,
+                direction=direction,
+                caller_city=caller_city,
+                started_at=datetime.now(timezone.utc)
+            )
+            db.session.add(call)
+            db.session.commit()
+            print(f"[INBOUND] New call {call_sid} from {from_number} ({caller_city}) - State: {lead_state}")
+
+            # Send "Incoming Call" alert
+            alert_manager = get_alert_manager()
+            if alert_manager:
+                alert = CallAlert(
+                    call_sid=call_sid,
+                    from_number=from_number,
+                    to_number=to_number,
+                    status='ringing',
+                    duration=0,
+                    lead_state=lead_state,
+                    direction='inbound'
+                )
+                alert_manager.notify_call_status(alert)
+
+        response.say(
+            "This call is being recorded for your security and quality assurance.",
+            language='en-US',
+            voice='Polly.Joanna'
+        )
+
+        response.enqueue(
+            None,
+            workflow_sid=Config.TWILIO_WORKFLOW_SID,
+            wait_url=f"{Config.BASE_URL}/wait"
+        )
 
     return str(response), 200, {'Content-Type': 'application/xml'}
 
