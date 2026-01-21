@@ -480,6 +480,18 @@ def call_status():
     # Atualiza campos baseado no status
     twilio_duration = int(duration) if duration else 0
 
+    # in-progress = chamada foi atendida (para outbound, significa que o lead atendeu)
+    if status == 'in-progress':
+        if not call.answered_at:
+            call.answered_at = datetime.now(timezone.utc)
+            print(f"[STATUS] Call {call_sid} answered at {call.answered_at}")
+            # Calculate queue_time for outbound (time from started_at to answered_at)
+            if call.started_at:
+                queue_seconds = (call.answered_at - call.started_at).total_seconds()
+                call.queue_time = int(queue_seconds)
+        db.session.commit()
+        return '', 204
+
     if status == 'completed':
         call.ended_at = datetime.now(timezone.utc)
         # Só é "answered" se o agente atendeu (answered_at foi setado pelo /assignment)
