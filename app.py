@@ -1068,6 +1068,7 @@ def get_attio_lead():
                 # Remove raw data from response (too verbose)
                 lead_response = {k: v for k, v in lead.items() if k != 'raw'}
                 print(f"[ATTIO] Found lead for {phone}: {lead_response.get('name', 'Unknown')}")
+                print(f"[ATTIO] Full response: {lead_response}")
                 return jsonify({"found": True, "lead": lead_response})
         else:
             print(f"[ATTIO] No lead found for {phone}")

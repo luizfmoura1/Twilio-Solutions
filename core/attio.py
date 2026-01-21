@@ -149,7 +149,7 @@ class AttioClient:
         case_type = get_value("case_type")
         classification = get_value("classification")
         description = get_value("case_description") or get_value("description")
-        attorney_info = get_value("attoney_info")  # Note: typo in Attio field name
+        attorney_info = get_value("attorney_info")
         has_attorney = get_value("attorney")
         city = get_value("city")
         advance_seeking = get_value("advance_seeking")
