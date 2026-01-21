@@ -41,6 +41,37 @@ def health():
     """Health check - always responds even if other services fail"""
     return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}), 200
 
+
+@app.route("/migrate_db", methods=['POST'])
+def migrate_db():
+    """
+    Migração única para adicionar colunas novas.
+    REMOVER ESTE ENDPOINT APÓS USO!
+    """
+    from sqlalchemy import text
+    results = []
+
+    # Adicionar coluna name em users
+    try:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR(100)"))
+        db.session.commit()
+        results.append("Coluna 'name' adicionada em users")
+    except Exception as e:
+        db.session.rollback()
+        results.append(f"name: {str(e)[:50]}")
+
+    # Adicionar coluna worker_email em calls
+    try:
+        db.session.execute(text("ALTER TABLE calls ADD COLUMN worker_email VARCHAR(255)"))
+        db.session.commit()
+        results.append("Coluna 'worker_email' adicionada em calls")
+    except Exception as e:
+        db.session.rollback()
+        results.append(f"worker_email: {str(e)[:50]}")
+
+    return jsonify({"results": results})
+
+
 print("[STARTUP] Health endpoint registered")
 
 # Swagger config with JWT auth
