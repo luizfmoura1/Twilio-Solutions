@@ -1143,6 +1143,54 @@ def admin_setup_workers():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/admin/fix_dispositions", methods=['POST'])
+@jwt_required
+def admin_fix_dispositions():
+    """
+    Corrige chamadas com disposition NULL.
+    - Se duration > 0: answered
+    - Se duration = 0 ou NULL: no-answer
+    """
+    results = []
+
+    try:
+        # Busca chamadas com disposition NULL
+        null_calls = Call.query.filter(Call.disposition == None).all()
+        results.append(f"Encontradas {len(null_calls)} chamadas com disposition NULL")
+
+        answered_count = 0
+        no_answer_count = 0
+
+        for call in null_calls:
+            if call.duration and call.duration > 0:
+                call.disposition = 'answered'
+                if not call.answered_at and call.started_at:
+                    # Estima answered_at baseado no started_at
+                    call.answered_at = call.started_at
+                answered_count += 1
+            else:
+                call.disposition = 'no-answer'
+                no_answer_count += 1
+
+        db.session.commit()
+
+        results.append(f"{answered_count} chamadas marcadas como 'answered'")
+        results.append(f"{no_answer_count} chamadas marcadas como 'no-answer'")
+
+        # Verifica se ainda há NULLs
+        remaining = Call.query.filter(Call.disposition == None).count()
+        results.append(f"Restantes com NULL: {remaining}")
+
+        return jsonify({
+            "success": True,
+            "results": results
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
 # ============== ATTIO CRM INTEGRATION ==============
 
 @app.route("/attio/lead", methods=['GET'])
