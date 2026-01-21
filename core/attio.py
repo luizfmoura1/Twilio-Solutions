@@ -153,6 +153,7 @@ class AttioClient:
         has_attorney = get_value("attorney")
         city = get_value("city")
         advance_seeking = get_value("advance_seeking")
+        advance_value = get_value("advance_value_numeric")  # Numeric value
         workers_comp = get_value("workers_comp")
 
         return {
@@ -168,6 +169,7 @@ class AttioClient:
             "attorney_info": attorney_info,
             "has_attorney": has_attorney,
             "advance_seeking": advance_seeking,
+            "advance_value": advance_value,  # Numeric value
             "workers_comp": workers_comp,
             "raw": record  # Include raw data for debugging
         }
