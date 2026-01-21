@@ -107,6 +107,10 @@ class AttioClient:
         """Format Attio person record to simplified dict"""
         values = record.get("values", {})
 
+        # Debug: print all available field names
+        logger.info(f"[ATTIO] Available fields in record: {list(values.keys())}")
+        logger.info(f"[ATTIO] Raw values: {values}")
+
         def get_value(field_name):
             """Helper to extract first value from a field"""
             field_data = values.get(field_name, [])
