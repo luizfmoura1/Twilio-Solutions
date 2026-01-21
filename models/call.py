@@ -22,6 +22,7 @@ class Call(db.Model):
     recording_sid = db.Column(db.String(50))
     caller_city = db.Column(db.String(100))  # City of the caller (from Twilio)
     worker_name = db.Column(db.String(100))  # Agent name from TaskRouter
+    worker_email = db.Column(db.String(255))  # Email do SDR que atendeu/fez a chamada
     started_at = db.Column(db.DateTime(timezone=True))
     answered_at = db.Column(db.DateTime(timezone=True))
     ended_at = db.Column(db.DateTime(timezone=True))
@@ -42,6 +43,7 @@ class Call(db.Model):
             'recording_url': self.recording_url,
             'caller_city': self.caller_city,
             'worker_name': self.worker_name,
+            'worker_email': self.worker_email,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'answered_at': self.answered_at.isoformat() if self.answered_at else None,
             'ended_at': self.ended_at.isoformat() if self.ended_at else None,

@@ -154,15 +154,17 @@ def voice():
         # ========== OUTBOUND CALL FROM BROWSER ==========
         print(f"[BROWSER CALL] From: {from_number}, To: {to_number}")
 
-        # Get the destination number from params
+        # Get the destination number and worker info from params
         dest_number = request.form.get('To', '')
+        worker_email = request.form.get('workerEmail', '')
+        worker_name = request.form.get('workerName', '')
 
         if dest_number and dest_number.startswith('+'):
             # Select Caller ID based on destination state
             caller_id = get_caller_id_for_number(dest_number)
             lead_state = get_state_from_phone(dest_number)
 
-            print(f"[BROWSER CALL] Dialing {dest_number} with Caller ID {caller_id} (State: {lead_state})")
+            print(f"[BROWSER CALL] Dialing {dest_number} with Caller ID {caller_id} (State: {lead_state}) - Worker: {worker_email}")
 
             # Save call to database
             existing_call = Call.query.filter_by(call_sid=call_sid).first()
@@ -173,6 +175,8 @@ def voice():
                     to_number=dest_number,
                     lead_state=lead_state,
                     direction='outbound',
+                    worker_email=worker_email,
+                    worker_name=worker_name,
                     started_at=datetime.now(timezone.utc)
                 )
                 db.session.add(call)
@@ -1013,11 +1017,117 @@ def get_voice_token():
         return jsonify({
             "token": token.to_jwt(),
             "identity": identity,
+            "email": g.current_user_email,  # Email completo para uso no Lovable
             "ttl": Config.VOICE_TOKEN_TTL
         })
 
     except Exception as e:
         print(f"[TOKEN ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ============== ADMIN SETUP ==============
+
+@app.route("/admin/setup_workers", methods=['POST'])
+@jwt_required
+def admin_setup_workers():
+    """
+    Configura workers (SDRs) no sistema.
+    Cria usuários Arthur e Eduarda, atualiza chamadas existentes.
+    ---
+    tags:
+      - Admin
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Setup concluído com sucesso
+      500:
+        description: Erro durante o setup
+    """
+    from sqlalchemy import text
+    from models.user import User
+
+    results = []
+
+    try:
+        # 1. Adicionar coluna worker_email na tabela calls (se não existir)
+        try:
+            db.session.execute(text("ALTER TABLE calls ADD COLUMN worker_email VARCHAR(255)"))
+            db.session.commit()
+            results.append("Coluna worker_email adicionada")
+        except Exception as e:
+            db.session.rollback()
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                results.append("Coluna worker_email já existe")
+            else:
+                results.append(f"Aviso worker_email: {e}")
+
+        # 2. Adicionar coluna name na tabela users (se não existir)
+        try:
+            db.session.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR(100)"))
+            db.session.commit()
+            results.append("Coluna name adicionada")
+        except Exception as e:
+            db.session.rollback()
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                results.append("Coluna name já existe")
+            else:
+                results.append(f"Aviso name: {e}")
+
+        # 3. Criar usuário Arthur
+        arthur = User.query.filter_by(email='arthur@fyntrainc.com').first()
+        if not arthur:
+            arthur = User(email='arthur@fyntrainc.com', name='Arthur')
+            arthur.set_password('fyntra2025')
+            db.session.add(arthur)
+            db.session.commit()
+            results.append("Usuário Arthur criado")
+        else:
+            if not arthur.name:
+                arthur.name = 'Arthur'
+                db.session.commit()
+            results.append("Usuário Arthur já existe")
+
+        # 4. Criar usuário Eduarda
+        eduarda = User.query.filter_by(email='eduarda@fyntrainc.com').first()
+        if not eduarda:
+            eduarda = User(email='eduarda@fyntrainc.com', name='Eduarda')
+            eduarda.set_password('fyntra2025')
+            db.session.add(eduarda)
+            db.session.commit()
+            results.append("Usuário Eduarda criado")
+        else:
+            if not eduarda.name:
+                eduarda.name = 'Eduarda'
+                db.session.commit()
+            results.append("Usuário Eduarda já existe")
+
+        # 5. Atualizar chamadas existentes para Arthur
+        calls_updated = Call.query.filter(
+            (Call.worker_email == None) | (Call.worker_email == '')
+        ).update({
+            'worker_email': 'arthur@fyntrainc.com',
+            'worker_name': 'Arthur'
+        })
+        db.session.commit()
+        results.append(f"{calls_updated} chamadas atualizadas para Arthur")
+
+        # Resumo
+        total_users = User.query.count()
+        total_calls = Call.query.count()
+
+        return jsonify({
+            "success": True,
+            "results": results,
+            "summary": {
+                "total_users": total_users,
+                "total_calls": total_calls
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
 
