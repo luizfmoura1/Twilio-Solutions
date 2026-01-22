@@ -494,19 +494,24 @@ def call_status():
 
     if status == 'completed':
         call.ended_at = datetime.now(timezone.utc)
-        # Só é "answered" se o agente atendeu (answered_at foi setado pelo /assignment)
+
+        # Não sobrescrever disposition se já foi setado pelo AMD (voicemail, etc)
+        if call.disposition not in ('voicemail', 'busy', 'failed', 'canceled'):
+            if call.answered_at:
+                call.disposition = 'answered'
+            else:
+                call.disposition = 'no-answer'
+
+        # Calculate duration
         if call.answered_at:
-            call.disposition = 'answered'
             # Duration = tempo de conversa (ended_at - answered_at)
             calculated_duration = int((call.ended_at - call.answered_at).total_seconds())
-        else:
-            # Agente não atendeu = Missed Call
-            call.disposition = 'no-answer'
+        elif call.started_at:
             # Duration = tempo total (ended_at - started_at)
-            if call.started_at:
-                calculated_duration = int((call.ended_at - call.started_at).total_seconds())
-            else:
-                calculated_duration = 0
+            calculated_duration = int((call.ended_at - call.started_at).total_seconds())
+        else:
+            calculated_duration = 0
+
         # Use o maior valor entre calculado e Twilio (fallback)
         call.duration = max(calculated_duration, twilio_duration, 0)
     elif status == 'busy':
