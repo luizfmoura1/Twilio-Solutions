@@ -235,11 +235,43 @@ def voice():
             voice='Polly.Joanna'
         )
 
-        response.enqueue(
-            None,
-            workflow_sid=Config.TWILIO_WORKFLOW_SID,
-            wait_url=f"{Config.BASE_URL}/wait"
-        )
+        # Verifica se deve usar Lovable ou Flex para inbound
+        use_lovable = Config.INBOUND_USE_LOVABLE
+
+        if use_lovable:
+            # ===== LOVABLE: Dial para todos os SDRs conectados =====
+            from models.user import User
+
+            # Busca todos os usuários ativos
+            active_users = User.query.filter_by(is_active=True).all()
+
+            # Gera identidades dos clientes (mesmo formato do /token)
+            client_identities = []
+            for user in active_users:
+                identity = ''.join(c for c in user.email if c.isalnum() or c in '_-')
+                client_identities.append(identity)
+
+            print(f"[INBOUND] Dialing to Lovable clients: {client_identities}")
+
+            # Dial para todos os clientes - primeiro a atender ganha
+            dial = cast(Dial, response.dial(
+                timeout=30,
+                action=f"{Config.BASE_URL}/inbound_status",
+                record='record-from-answer-dual',
+                recording_status_callback=f"{Config.BASE_URL}/recording_status",
+                recording_status_callback_event='completed'
+            ))
+
+            for identity in client_identities:
+                dial.client(identity)
+
+        else:
+            # ===== FLEX: Enqueue para TaskRouter =====
+            response.enqueue(
+                None,
+                workflow_sid=Config.TWILIO_WORKFLOW_SID,
+                wait_url=f"{Config.BASE_URL}/wait"
+            )
 
     return str(response), 200, {'Content-Type': 'application/xml'}
 
@@ -255,6 +287,102 @@ def wait():
         voice='Polly.Joanna'
     )
     response.play("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3", loop=0)
+    return str(response), 200, {'Content-Type': 'application/xml'}
+
+
+@app.route("/inbound_status", methods=['POST'])
+@validate_twilio_signature
+def inbound_status():
+    """
+    Callback quando o Dial para clientes Lovable completa.
+    Atualiza o banco com quem atendeu a chamada.
+    """
+    call_sid = request.form.get('CallSid', '')
+    dial_call_status = request.form.get('DialCallStatus', '')  # completed, no-answer, busy, failed, canceled
+    dial_call_sid = request.form.get('DialCallSid', '')  # SID da perna que atendeu
+    called_via = request.form.get('Called', '')  # client:identity que atendeu
+
+    print(f"[INBOUND STATUS] CallSid={call_sid}, DialStatus={dial_call_status}, CalledVia={called_via}")
+
+    response = VoiceResponse()
+
+    # Busca a chamada no banco
+    call = Call.query.filter_by(call_sid=call_sid).first()
+
+    if dial_call_status == 'completed' or dial_call_status == 'answered':
+        # Alguém atendeu!
+        if call:
+            call.answered_at = datetime.now(timezone.utc)
+            call.disposition = 'answered'
+
+            # Extrai a identidade do cliente que atendeu
+            if called_via and called_via.startswith('client:'):
+                client_identity = called_via.replace('client:', '')
+                # Tenta encontrar o usuário pelo identity
+                from models.user import User
+                for user in User.query.filter_by(is_active=True).all():
+                    user_identity = ''.join(c for c in user.email if c.isalnum() or c in '_-')
+                    if user_identity == client_identity:
+                        call.worker_email = user.email
+                        call.worker_name = user.name or user.email.split('@')[0].capitalize()
+                        print(f"[INBOUND STATUS] Call answered by {call.worker_name} ({call.worker_email})")
+                        break
+
+            db.session.commit()
+
+    elif dial_call_status == 'no-answer':
+        # Ninguém atendeu - deixa mensagem
+        if call:
+            call.disposition = 'no-answer'
+            db.session.commit()
+
+        response.say(
+            "We're sorry, no one is available to take your call. Please leave a message after the beep.",
+            language='en-US',
+            voice='Polly.Joanna'
+        )
+        response.record(
+            max_length=120,
+            action=f"{Config.BASE_URL}/voicemail_recorded",
+            recording_status_callback=f"{Config.BASE_URL}/recording_status"
+        )
+
+    elif dial_call_status in ('busy', 'failed', 'canceled'):
+        if call:
+            call.disposition = dial_call_status
+            db.session.commit()
+
+        response.say(
+            "We're sorry, we couldn't connect your call. Please try again later.",
+            language='en-US',
+            voice='Polly.Joanna'
+        )
+        response.hangup()
+
+    return str(response), 200, {'Content-Type': 'application/xml'}
+
+
+@app.route("/voicemail_recorded", methods=['POST'])
+@validate_twilio_signature
+def voicemail_recorded():
+    """Callback quando o cliente deixa uma mensagem de voz"""
+    call_sid = request.form.get('CallSid', '')
+    recording_url = request.form.get('RecordingUrl', '')
+
+    print(f"[VOICEMAIL] Recorded for {call_sid}: {recording_url}")
+
+    # Atualiza o banco
+    call = Call.query.filter_by(call_sid=call_sid).first()
+    if call:
+        call.disposition = 'voicemail'
+        if recording_url:
+            call.recording_url = recording_url
+        db.session.commit()
+
+    response = VoiceResponse()
+    response.say("Thank you for your message. Goodbye.", language='en-US', voice='Polly.Joanna')
+    response.hangup()
+
     return str(response), 200, {'Content-Type': 'application/xml'}
 
 

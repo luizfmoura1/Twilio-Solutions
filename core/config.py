@@ -77,3 +77,6 @@ class Config:
     TWILIO_API_KEY: str = os.environ.get('TWILIO_API_KEY', '')
     TWILIO_API_SECRET: str = os.environ.get('TWILIO_API_SECRET', '')
     VOICE_TOKEN_TTL: int = int(os.environ.get('VOICE_TOKEN_TTL', '86400'))  # 24 hours (max allowed by Twilio)
+
+    # Inbound routing: True = Lovable, False = Flex/TaskRouter
+    INBOUND_USE_LOVABLE: bool = os.environ.get('INBOUND_USE_LOVABLE', 'false').lower() == 'true'
