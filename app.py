@@ -131,15 +131,19 @@ def _calculate_contact_tracking(call):
 
     # Query previous calls to this number
     if direction == 'inbound':
-        previous_calls = Call.query.filter(
-            Call.from_number.contains(lead_phone_normalized[-10:]),  # Last 10 digits
-            Call.id != call.id if call.id else True
-        ).order_by(Call.started_at.asc()).all()
+        query = Call.query.filter(
+            Call.from_number.contains(lead_phone_normalized[-10:])  # Last 10 digits
+        )
     else:
-        previous_calls = Call.query.filter(
-            Call.to_number.contains(lead_phone_normalized[-10:]),  # Last 10 digits
-            Call.id != call.id if call.id else True
-        ).order_by(Call.started_at.asc()).all()
+        query = Call.query.filter(
+            Call.to_number.contains(lead_phone_normalized[-10:])  # Last 10 digits
+        )
+
+    # Exclude current call if it has an ID
+    if call.id:
+        query = query.filter(Call.id != call.id)
+
+    previous_calls = query.order_by(Call.started_at.asc()).all()
 
     # 1. Contact number (total)
     call.contact_number = len(previous_calls) + 1
