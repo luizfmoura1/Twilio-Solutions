@@ -18,6 +18,9 @@ bcrypt==5.0.0
 # Environment
 python-dotenv==1.0.1
 
+# Timezone handling
+pytz==2024.1
+
 # HTTP Client (for Slack webhooks and Attio API)
 httpx==0.28.1
 requests==2.32.3

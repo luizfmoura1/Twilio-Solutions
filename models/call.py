@@ -23,6 +23,13 @@ class Call(db.Model):
     caller_city = db.Column(db.String(100))  # City of the caller (from Twilio)
     worker_name = db.Column(db.String(100))  # Agent name from TaskRouter
     worker_email = db.Column(db.String(255))  # Email do SDR que atendeu/fez a chamada
+
+    # Contact tracking columns
+    contact_number = db.Column(db.Integer)  # Número sequencial de ligações para esse telefone (total)
+    contact_number_today = db.Column(db.Integer)  # Número sequencial de ligações para esse telefone no dia
+    previously_answered = db.Column(db.Boolean, default=False)  # Se esse telefone já atendeu antes
+    contact_period = db.Column(db.String(20))  # morning, afternoon, evening (horário local do lead)
+
     started_at = db.Column(db.DateTime(timezone=True))
     answered_at = db.Column(db.DateTime(timezone=True))
     ended_at = db.Column(db.DateTime(timezone=True))
@@ -44,6 +51,10 @@ class Call(db.Model):
             'caller_city': self.caller_city,
             'worker_name': self.worker_name,
             'worker_email': self.worker_email,
+            'contact_number': self.contact_number,
+            'contact_number_today': self.contact_number_today,
+            'previously_answered': self.previously_answered,
+            'contact_period': self.contact_period,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'answered_at': self.answered_at.isoformat() if self.answered_at else None,
             'ended_at': self.ended_at.isoformat() if self.ended_at else None,

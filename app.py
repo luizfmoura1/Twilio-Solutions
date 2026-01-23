@@ -107,6 +107,54 @@ print("[STARTUP] App initialization complete")
 
 # ============== HELPER FUNCTIONS ==============
 
+def _calculate_contact_tracking(call):
+    """
+    Calculate contact tracking values for a call.
+    Sets: contact_number, contact_number_today, previously_answered, contact_period
+    """
+    from core.phone_utils import get_contact_period, get_lead_phone_for_call
+    from datetime import date
+
+    direction = call.direction or 'outbound'
+    lead_phone = get_lead_phone_for_call(direction, call.from_number, call.to_number)
+
+    if not lead_phone:
+        call.contact_number = 1
+        call.contact_number_today = 1
+        call.previously_answered = False
+        call.contact_period = get_contact_period(call.started_at, call.lead_state)
+        return
+
+    # Normaliza o número
+    lead_phone_normalized = ''.join(c for c in lead_phone if c.isdigit())
+    today = date.today()
+
+    # Query previous calls to this number
+    if direction == 'inbound':
+        previous_calls = Call.query.filter(
+            Call.from_number.contains(lead_phone_normalized[-10:]),  # Last 10 digits
+            Call.id != call.id if call.id else True
+        ).order_by(Call.started_at.asc()).all()
+    else:
+        previous_calls = Call.query.filter(
+            Call.to_number.contains(lead_phone_normalized[-10:]),  # Last 10 digits
+            Call.id != call.id if call.id else True
+        ).order_by(Call.started_at.asc()).all()
+
+    # 1. Contact number (total)
+    call.contact_number = len(previous_calls) + 1
+
+    # 2. Contact number today
+    today_calls = [c for c in previous_calls if c.started_at and c.started_at.date() == today]
+    call.contact_number_today = len(today_calls) + 1
+
+    # 3. Previously answered
+    call.previously_answered = any(c.disposition == 'answered' for c in previous_calls)
+
+    # 4. Contact period
+    call.contact_period = get_contact_period(call.started_at, call.lead_state)
+
+
 def _calculate_duration(call):
     """
     Calculate call duration based on timestamps.
@@ -180,6 +228,7 @@ def voice():
                     started_at=datetime.now(timezone.utc)
                 )
                 db.session.add(call)
+                _calculate_contact_tracking(call)
                 db.session.commit()
 
             # Dial the destination number
@@ -212,6 +261,7 @@ def voice():
                 started_at=datetime.now(timezone.utc)
             )
             db.session.add(call)
+            _calculate_contact_tracking(call)
             db.session.commit()
             print(f"[INBOUND] New call {call_sid} from {from_number} ({caller_city}) - State: {lead_state}")
 
@@ -604,6 +654,7 @@ def call_status():
             started_at=datetime.now(timezone.utc)
         )
         db.session.add(call)
+        _calculate_contact_tracking(call)
 
     # Atualiza campos baseado no status
     twilio_duration = int(duration) if duration else 0
@@ -1313,6 +1364,103 @@ def admin_fix_dispositions():
         # Verifica se ainda há NULLs
         remaining = Call.query.filter(Call.disposition == None).count()
         results.append(f"Restantes com NULL: {remaining}")
+
+        return jsonify({
+            "success": True,
+            "results": results
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/setup_contact_tracking", methods=['POST'])
+@jwt_required
+def admin_setup_contact_tracking():
+    """
+    Configura as novas colunas de tracking de contato.
+    - Adiciona colunas se não existirem
+    - Calcula valores para chamadas existentes
+    """
+    from sqlalchemy import text
+    from core.phone_utils import get_contact_period, get_lead_phone_for_call
+
+    results = []
+
+    try:
+        # 1. Adicionar novas colunas
+        new_columns = [
+            ("contact_number", "INTEGER"),
+            ("contact_number_today", "INTEGER"),
+            ("previously_answered", "BOOLEAN DEFAULT FALSE"),
+            ("contact_period", "VARCHAR(20)")
+        ]
+
+        for col_name, col_type in new_columns:
+            try:
+                db.session.execute(text(f"ALTER TABLE calls ADD COLUMN {col_name} {col_type}"))
+                db.session.commit()
+                results.append(f"Coluna '{col_name}' adicionada")
+            except Exception as e:
+                db.session.rollback()
+                if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                    results.append(f"Coluna '{col_name}' já existe")
+                else:
+                    results.append(f"Erro em '{col_name}': {str(e)[:50]}")
+
+        # 2. Calcular valores para chamadas existentes
+        # Ordena por data para calcular sequência corretamente
+        all_calls = Call.query.order_by(Call.started_at.asc()).all()
+        results.append(f"Processando {len(all_calls)} chamadas...")
+
+        # Dicionários para tracking
+        phone_contact_count = {}  # phone -> total count
+        phone_daily_count = {}    # (phone, date) -> daily count
+        phone_answered = {}       # phone -> was ever answered
+
+        updated_count = 0
+
+        for call in all_calls:
+            # Determina o número do lead
+            direction = call.direction or 'outbound'
+            lead_phone = get_lead_phone_for_call(direction, call.from_number, call.to_number)
+
+            if not lead_phone:
+                continue
+
+            # Normaliza o número
+            lead_phone_normalized = ''.join(c for c in lead_phone if c.isdigit())
+
+            # Data da chamada
+            call_date = call.started_at.date() if call.started_at else None
+
+            # 1. Contact number (total)
+            phone_contact_count[lead_phone_normalized] = phone_contact_count.get(lead_phone_normalized, 0) + 1
+            call.contact_number = phone_contact_count[lead_phone_normalized]
+
+            # 2. Contact number today
+            if call_date:
+                daily_key = (lead_phone_normalized, call_date)
+                phone_daily_count[daily_key] = phone_daily_count.get(daily_key, 0) + 1
+                call.contact_number_today = phone_daily_count[daily_key]
+            else:
+                call.contact_number_today = 1
+
+            # 3. Previously answered (antes DESTA chamada)
+            call.previously_answered = phone_answered.get(lead_phone_normalized, False)
+
+            # Atualiza se esta chamada foi atendida (para próximas)
+            if call.disposition == 'answered':
+                phone_answered[lead_phone_normalized] = True
+
+            # 4. Contact period
+            call.contact_period = get_contact_period(call.started_at, call.lead_state)
+
+            updated_count += 1
+
+        db.session.commit()
+        results.append(f"{updated_count} chamadas atualizadas com tracking")
 
         return jsonify({
             "success": True,

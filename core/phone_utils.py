@@ -186,3 +186,114 @@ def get_caller_id_for_number(to_number: str) -> str:
         return Config.CALLER_ID_TX
     else:
         return Config.CALLER_ID_DEFAULT
+
+
+# US State to Timezone mapping
+STATE_TO_TIMEZONE = {
+    # Eastern Time (ET)
+    'CT': 'America/New_York', 'DE': 'America/New_York', 'FL': 'America/New_York',
+    'GA': 'America/New_York', 'IN': 'America/New_York', 'KY': 'America/New_York',
+    'ME': 'America/New_York', 'MD': 'America/New_York', 'MA': 'America/New_York',
+    'MI': 'America/New_York', 'NH': 'America/New_York', 'NJ': 'America/New_York',
+    'NY': 'America/New_York', 'NC': 'America/New_York', 'OH': 'America/New_York',
+    'PA': 'America/New_York', 'RI': 'America/New_York', 'SC': 'America/New_York',
+    'VT': 'America/New_York', 'VA': 'America/New_York', 'WV': 'America/New_York',
+    'DC': 'America/New_York',
+    # Central Time (CT)
+    'AL': 'America/Chicago', 'AR': 'America/Chicago', 'IL': 'America/Chicago',
+    'IA': 'America/Chicago', 'KS': 'America/Chicago', 'LA': 'America/Chicago',
+    'MN': 'America/Chicago', 'MS': 'America/Chicago', 'MO': 'America/Chicago',
+    'NE': 'America/Chicago', 'ND': 'America/Chicago', 'OK': 'America/Chicago',
+    'SD': 'America/Chicago', 'TN': 'America/Chicago', 'TX': 'America/Chicago',
+    'WI': 'America/Chicago',
+    # Mountain Time (MT)
+    'AZ': 'America/Phoenix', 'CO': 'America/Denver', 'ID': 'America/Denver',
+    'MT': 'America/Denver', 'NM': 'America/Denver', 'UT': 'America/Denver',
+    'WY': 'America/Denver',
+    # Pacific Time (PT)
+    'CA': 'America/Los_Angeles', 'NV': 'America/Los_Angeles', 'OR': 'America/Los_Angeles',
+    'WA': 'America/Los_Angeles',
+    # Alaska Time
+    'AK': 'America/Anchorage',
+    # Hawaii Time
+    'HI': 'Pacific/Honolulu',
+}
+
+
+def get_timezone_for_state(state: str) -> str:
+    """
+    Get timezone for a US state.
+
+    Args:
+        state: Two-letter state code
+
+    Returns:
+        Timezone string (defaults to America/New_York if not found)
+    """
+    return STATE_TO_TIMEZONE.get(state, 'America/New_York')
+
+
+def get_contact_period(utc_datetime, state: str = None) -> str:
+    """
+    Determine contact period (morning, afternoon, evening) based on local time.
+
+    Args:
+        utc_datetime: DateTime in UTC
+        state: Two-letter state code for timezone conversion
+
+    Returns:
+        'morning' (6-12), 'afternoon' (12-18), or 'evening' (18-6)
+    """
+    from datetime import datetime, timezone as tz
+    try:
+        import pytz
+    except ImportError:
+        # Fallback if pytz not available - use UTC
+        hour = utc_datetime.hour if utc_datetime else 12
+        if 6 <= hour < 12:
+            return 'morning'
+        elif 12 <= hour < 18:
+            return 'afternoon'
+        else:
+            return 'evening'
+
+    if not utc_datetime:
+        return 'afternoon'
+
+    # Get timezone for state
+    tz_name = get_timezone_for_state(state) if state else 'America/New_York'
+
+    try:
+        local_tz = pytz.timezone(tz_name)
+        # Ensure UTC datetime has timezone info
+        if utc_datetime.tzinfo is None:
+            utc_datetime = pytz.utc.localize(utc_datetime)
+        local_time = utc_datetime.astimezone(local_tz)
+        hour = local_time.hour
+    except Exception:
+        hour = utc_datetime.hour if utc_datetime else 12
+
+    if 6 <= hour < 12:
+        return 'morning'
+    elif 12 <= hour < 18:
+        return 'afternoon'
+    else:
+        return 'evening'
+
+
+def get_lead_phone_for_call(direction: str, from_number: str, to_number: str) -> str:
+    """
+    Get the lead's phone number based on call direction.
+
+    Args:
+        direction: 'inbound' or 'outbound'
+        from_number: From number
+        to_number: To number
+
+    Returns:
+        Lead's phone number
+    """
+    if direction == 'inbound':
+        return from_number
+    else:
+        return to_number
