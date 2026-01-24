@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CallRecord } from '@/types';
-import { ArrowUpRight, ArrowDownLeft, Phone, PhoneMissed, PhoneOff, Voicemail, Clock, Play, PhoneCall, User, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Phone, PhoneMissed, PhoneOff, Voicemail, Clock, Play, PhoneCall, User, ChevronDown, ChevronUp, Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -48,6 +48,20 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Calculate time to answer (difference between answered_at and started_at)
+  const getTimeToAnswer = (): string | null => {
+    if (record.disposition !== 'answered' || !record.answered_at || !record.started_at) {
+      return null;
+    }
+    const answeredAt = new Date(record.answered_at);
+    const startedAt = new Date(record.started_at);
+    const diffSeconds = Math.floor((answeredAt.getTime() - startedAt.getTime()) / 1000);
+    if (diffSeconds < 0 || diffSeconds > 300) return null; // Sanity check: max 5 minutes
+    return `${diffSeconds}s`;
+  };
+
+  const timeToAnswer = getTimeToAnswer();
+
   const disposition = getDisposition(record.disposition);
   const StatusIcon = disposition.icon;
   
@@ -81,7 +95,7 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
   return (
     <div className="hover:bg-muted/50 transition-colors">
       {/* Main row */}
-      <div className="px-4 py-3 grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-3 items-center">
+      <div className="px-4 py-3 grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto_auto] gap-3 items-center">
         {/* Direction icon */}
         <div className={cn(
           'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
@@ -138,6 +152,18 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
             <StatusIcon className="w-3 h-3" />
             {disposition.label}
           </span>
+        </div>
+
+        {/* Time to answer - Fixed width column */}
+        <div className="w-14 hidden sm:flex justify-center" title="Tempo para atender">
+          {timeToAnswer ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono text-blue-500 bg-blue-500/10">
+              <Timer className="w-3 h-3" />
+              {timeToAnswer}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">-</span>
+          )}
         </div>
 
         {/* Duration - Fixed width column */}

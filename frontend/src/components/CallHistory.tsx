@@ -18,6 +18,7 @@ interface CallHistoryProps {
   onViewLead?: (phoneNumber: string) => void;
   className?: string;
   refreshTrigger?: number;
+  onCallsLoaded?: (calls: CallRecord[]) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -41,7 +42,7 @@ const getWorkerDisplayName = (record: CallRecord): string => {
   return '';
 };
 
-export function CallHistory({ onCallNumber, onViewLead, className, refreshTrigger }: CallHistoryProps) {
+export function CallHistory({ onCallNumber, onViewLead, className, refreshTrigger, onCallsLoaded }: CallHistoryProps) {
   const [allCalls, setAllCalls] = useState<CallRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +101,13 @@ export function CallHistory({ onCallNumber, onViewLead, className, refreshTrigge
   useEffect(() => {
     fetchCalls();
   }, [fetchCalls]);
+
+  // Notify parent when calls are loaded
+  useEffect(() => {
+    if (onCallsLoaded && allCalls.length >= 0 && !isLoading) {
+      onCallsLoaded(allCalls);
+    }
+  }, [allCalls, isLoading, onCallsLoaded]);
 
   // Refresh when trigger changes (after call ends)
   useEffect(() => {

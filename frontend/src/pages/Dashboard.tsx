@@ -9,10 +9,11 @@ import { ActiveCall } from '@/components/ActiveCall';
 import { LeadCard } from '@/components/LeadCard';
 import { CallHistory } from '@/components/CallHistory';
 import { CallNoteModal } from '@/components/CallNoteModal';
+import { MetricsDashboard } from '@/components/MetricsDashboard';
 import { leadService, LeadWithTracking } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle, CheckCircle2, Loader2, Phone } from 'lucide-react';
-import { Lead, ContactPeriod } from '@/types';
+import { Lead, ContactPeriod, CallRecord } from '@/types';
 
 export default function Dashboard() {
   const { state, dispatch, endCall } = useApp();
@@ -22,6 +23,8 @@ export default function Dashboard() {
   const [autoDialProcessed, setAutoDialProcessed] = useState(false);
   const [isLoadingLead, setIsLoadingLead] = useState(false);
   const [callHistoryRefresh, setCallHistoryRefresh] = useState(0);
+  const [allCalls, setAllCalls] = useState<CallRecord[]>([]);
+  const [isLoadingCalls, setIsLoadingCalls] = useState(true);
   const [autoCallNumber, setAutoCallNumber] = useState<string | null>(null);
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string | null>(null);
   const [dialpadNumber, setDialpadNumber] = useState<string>('');
@@ -314,6 +317,11 @@ export default function Dashboard() {
     await fetchLeadByPhone(phoneNumber);
   };
 
+  const handleCallsLoaded = useCallback((calls: CallRecord[]) => {
+    setAllCalls(calls);
+    setIsLoadingCalls(false);
+  }, []);
+
   const handleCallFromLeadCard = (phoneNumber: string) => {
     handleCall(phoneNumber);
   };
@@ -415,7 +423,11 @@ export default function Dashboard() {
       )}
 
       <main className="flex-1 p-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Metrics Dashboard */}
+          <MetricsDashboard calls={allCalls} isLoading={isLoadingCalls} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left - Dialpad */}
           <div className="lg:col-span-3">
             <Dialpad 
@@ -461,11 +473,13 @@ export default function Dashboard() {
 
           {/* Bottom - Call History */}
           <div className="lg:col-span-12">
-            <CallHistory 
+            <CallHistory
               onCallNumber={handleCallFromHistory}
               onViewLead={handleViewLeadFromHistory}
               refreshTrigger={callHistoryRefresh}
+              onCallsLoaded={handleCallsLoaded}
             />
+          </div>
           </div>
         </div>
       </main>
