@@ -235,14 +235,20 @@ def voice():
                 _calculate_contact_tracking(call)
                 db.session.commit()
 
-            # Dial the destination number
+            # Dial the destination number with AMD (Answering Machine Detection)
             dial = cast(Dial, response.dial(
                 caller_id=caller_id,
                 record='record-from-answer-dual',
                 recording_status_callback=f"{Config.BASE_URL}/recording_status",
                 recording_status_callback_event='completed'
             ))
-            dial.number(dest_number)
+            dial.number(
+                dest_number,
+                status_callback=f"{Config.BASE_URL}/call_status",
+                status_callback_event='initiated ringing answered completed',
+                machine_detection='DetectMessageEnd',
+                machine_detection_timeout=30
+            )
         else:
             response.say("Invalid destination number.", language='en-US', voice='Polly.Joanna')
             response.hangup()
@@ -632,9 +638,10 @@ def call_status():
     from_number = request.form.get('From', '')
     to_number = request.form.get('To', '')
     direction = request.form.get('Direction', '')
+    answered_by = request.form.get('AnsweredBy', '')  # AMD result
 
     # Debug: log all incoming webhook data
-    print(f"[WEBHOOK DEBUG] CallSid={call_sid}, Status={status}, Direction={direction}, From={from_number}, To={to_number}")
+    print(f"[WEBHOOK DEBUG] CallSid={call_sid}, Status={status}, Direction={direction}, AnsweredBy={answered_by}")
 
     if not call_sid:
         return '', 400
@@ -659,6 +666,14 @@ def call_status():
         )
         db.session.add(call)
         _calculate_contact_tracking(call)
+
+    # AMD Detection: Se detectou máquina/voicemail, marca como voicemail
+    machine_types = ['machine_start', 'machine_end_beep', 'machine_end_silence', 'machine_end_other', 'fax']
+    if answered_by in machine_types:
+        call.disposition = 'voicemail'
+        print(f"[AMD] Call {call_sid}: Detected {answered_by} - setting disposition to voicemail")
+    elif answered_by == 'human':
+        print(f"[AMD] Call {call_sid}: Human detected")
 
     # Atualiza campos baseado no status
     twilio_duration = int(duration) if duration else 0
