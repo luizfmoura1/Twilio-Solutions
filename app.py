@@ -357,7 +357,6 @@ def wait():
 
 
 @app.route("/amd_callback", methods=['POST'])
-@validate_twilio_signature
 def amd_callback():
     """
     Callback dedicado para AMD (Answering Machine Detection).
