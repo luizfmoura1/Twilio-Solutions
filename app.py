@@ -860,14 +860,7 @@ def call_status():
     if status == 'completed':
         call.ended_at = datetime.now(timezone.utc)
 
-        # Não sobrescrever disposition se já foi setado pelo AMD (voicemail, etc)
-        if call.disposition not in ('voicemail', 'busy', 'failed', 'canceled'):
-            if call.answered_at:
-                call.disposition = 'answered'
-            else:
-                call.disposition = 'no-answer'
-
-        # Calculate duration
+        # Calculate duration first (needed for voicemail detection)
         if call.answered_at:
             # Duration = tempo de conversa (ended_at - answered_at)
             calculated_duration = int((call.ended_at - call.answered_at).total_seconds())
@@ -879,6 +872,19 @@ def call_status():
 
         # Use o maior valor entre calculado e Twilio (fallback)
         call.duration = max(calculated_duration, twilio_duration, 0)
+
+        # Não sobrescrever disposition se já foi setado pelo AMD (voicemail, etc)
+        if call.disposition not in ('voicemail', 'busy', 'failed', 'canceled'):
+            if call.answered_at:
+                # Fallback: chamadas outbound muito curtas (< 15s) são provavelmente voicemail
+                # AMD não funciona bem para números internacionais
+                if call.direction == 'outbound' and call.duration < 15:
+                    call.disposition = 'voicemail'
+                    print(f"[VOICEMAIL FALLBACK] Call {call_sid}: Short duration ({call.duration}s) - likely voicemail")
+                else:
+                    call.disposition = 'answered'
+            else:
+                call.disposition = 'no-answer'
     elif status == 'busy':
         call.ended_at = datetime.now(timezone.utc)
         call.disposition = 'busy'
