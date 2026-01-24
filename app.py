@@ -235,20 +235,14 @@ def voice():
                 _calculate_contact_tracking(call)
                 db.session.commit()
 
-            # Dial the destination number with AMD enabled
+            # Dial the destination number
             dial = cast(Dial, response.dial(
                 caller_id=caller_id,
                 record='record-from-answer-dual',
                 recording_status_callback=f"{Config.BASE_URL}/recording_status",
                 recording_status_callback_event='completed'
             ))
-            dial.number(
-                dest_number,
-                machine_detection='DetectMessageEnd',
-                machine_detection_timeout=30,
-                amd_status_callback=f"{Config.BASE_URL}/amd_status",
-                amd_status_callback_method='POST'
-            )
+            dial.number(dest_number)
         else:
             response.say("Invalid destination number.", language='en-US', voice='Polly.Joanna')
             response.hangup()
@@ -742,61 +736,6 @@ def call_status():
             worker_name=call.worker_name
         )
         alert_manager.notify_call_status(alert)
-
-    return '', 204
-
-
-@app.route("/amd_status", methods=['POST'])
-@validate_twilio_signature
-def amd_status():
-    """
-    Recebe resultado do AMD (Answering Machine Detection).
-    Se detectar voicemail, atualiza o disposition da chamada.
-
-    AnsweredBy values:
-    - human: Humano atendeu
-    - machine_start: Máquina detectada no início
-    - machine_end_beep: Máquina detectada, beep ouvido
-    - machine_end_silence: Máquina detectada, silêncio após mensagem
-    - machine_end_other: Máquina detectada, outro motivo
-    - fax: Fax detectado
-    - unknown: Não foi possível determinar
-    """
-    call_sid = request.form.get('CallSid', '')
-    answered_by = request.form.get('AnsweredBy', '')
-    machine_detection_duration = request.form.get('MachineDetectionDuration', '')
-
-    print(f"[AMD] Call {call_sid}: AnsweredBy={answered_by}, Duration={machine_detection_duration}ms")
-
-    if not call_sid:
-        return '', 400
-
-    # Se for máquina/voicemail, atualiza o disposition
-    machine_types = ['machine_start', 'machine_end_beep', 'machine_end_silence', 'machine_end_other', 'fax']
-
-    if answered_by in machine_types:
-        call = Call.query.filter_by(call_sid=call_sid).first()
-        if call:
-            call.disposition = 'voicemail'
-            db.session.commit()
-            print(f"[AMD] Call {call_sid}: Disposition set to 'voicemail' (AnsweredBy: {answered_by})")
-
-            # Send alert
-            alert_manager = get_alert_manager()
-            if alert_manager:
-                alert = CallAlert(
-                    call_sid=call_sid,
-                    from_number=call.from_number,
-                    to_number=call.to_number,
-                    status='voicemail',
-                    duration=0,
-                    disposition='voicemail',
-                    lead_state=call.lead_state,
-                    direction=call.direction or 'outbound'
-                )
-                alert_manager.notify_call_status(alert)
-    elif answered_by == 'human':
-        print(f"[AMD] Call {call_sid}: Human answered - no action needed")
 
     return '', 204
 
