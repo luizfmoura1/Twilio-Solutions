@@ -354,6 +354,113 @@ def wait():
     return str(response), 200, {'Content-Type': 'application/xml'}
 
 
+@app.route("/hold_music", methods=['GET', 'POST'])
+def hold_music():
+    """TwiML que toca música de espera em loop"""
+    response = VoiceResponse()
+    response.say(
+        "Please hold, your call is important to us.",
+        language='en-US',
+        voice='Polly.Joanna'
+    )
+    response.play("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3", loop=0)
+    return str(response), 200, {'Content-Type': 'application/xml'}
+
+
+@app.route("/hold", methods=['POST'])
+@jwt_required
+def hold_call():
+    """
+    Coloca uma chamada em espera (hold) - toca música para o lead.
+    ---
+    tags:
+      - Calls
+    security:
+      - Bearer: []
+    parameters:
+      - name: body
+        in: body
+        schema:
+          properties:
+            call_sid:
+              type: string
+              description: SID da chamada (perna do lead, não do agente)
+    responses:
+      200:
+        description: Chamada colocada em hold
+      400:
+        description: call_sid não fornecido
+      500:
+        description: Erro ao colocar em hold
+    """
+    data = request.get_json() or {}
+    call_sid = data.get('call_sid')
+
+    if not call_sid:
+        return jsonify({"error": "call_sid is required"}), 400
+
+    try:
+        # Redireciona a chamada do lead para tocar música de espera
+        call = client.calls(call_sid).update(
+            url=f"{Config.BASE_URL}/hold_music",
+            method='POST'
+        )
+        print(f"[HOLD] Call {call_sid} placed on hold")
+        return jsonify({"success": True, "message": "Call placed on hold", "call_sid": call_sid})
+    except Exception as e:
+        print(f"[HOLD ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/unhold", methods=['POST'])
+@jwt_required
+def unhold_call():
+    """
+    Retira uma chamada da espera - reconecta com o agente.
+    ---
+    tags:
+      - Calls
+    security:
+      - Bearer: []
+    parameters:
+      - name: body
+        in: body
+        schema:
+          properties:
+            call_sid:
+              type: string
+              description: SID da chamada do lead
+            agent_identity:
+              type: string
+              description: Identidade do agente para reconectar
+    responses:
+      200:
+        description: Chamada retirada do hold
+      400:
+        description: Parâmetros faltando
+      500:
+        description: Erro ao retirar do hold
+    """
+    data = request.get_json() or {}
+    call_sid = data.get('call_sid')
+    agent_identity = data.get('agent_identity')
+
+    if not call_sid or not agent_identity:
+        return jsonify({"error": "call_sid and agent_identity are required"}), 400
+
+    try:
+        # Redireciona a chamada de volta para o agente
+        # Cria TwiML para conectar de volta
+        call = client.calls(call_sid).update(
+            twiml=f'<Response><Dial><Client>{agent_identity}</Client></Dial></Response>'
+        )
+        print(f"[UNHOLD] Call {call_sid} reconnected to {agent_identity}")
+        return jsonify({"success": True, "message": "Call resumed", "call_sid": call_sid})
+    except Exception as e:
+        print(f"[UNHOLD ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/inbound_status", methods=['POST'])
 @validate_twilio_signature
 def inbound_status():
@@ -1246,6 +1353,46 @@ def get_voice_token():
 
 
 # ============== ADMIN SETUP ==============
+
+@app.route("/admin/delete_calls", methods=['POST'])
+@jwt_required
+def admin_delete_calls():
+    """
+    Deleta chamadas por IDs.
+    ---
+    tags:
+      - Admin
+    security:
+      - Bearer: []
+    parameters:
+      - name: body
+        in: body
+        schema:
+          properties:
+            ids:
+              type: array
+              items:
+                type: integer
+    responses:
+      200:
+        description: Chamadas deletadas
+    """
+    data = request.get_json() or {}
+    ids = data.get('ids', [])
+
+    if not ids:
+        return jsonify({"error": "No IDs provided"}), 400
+
+    deleted = []
+    for call_id in ids:
+        call = Call.query.get(call_id)
+        if call:
+            db.session.delete(call)
+            deleted.append(call_id)
+
+    db.session.commit()
+    return jsonify({"deleted": deleted, "count": len(deleted)})
+
 
 @app.route("/admin/setup_workers", methods=['POST'])
 @jwt_required
