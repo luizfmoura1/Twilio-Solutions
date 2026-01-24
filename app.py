@@ -114,6 +114,7 @@ def _calculate_contact_tracking(call):
     """
     from core.phone_utils import get_contact_period, get_lead_phone_for_call
     from datetime import date
+    from sqlalchemy import and_
 
     direction = call.direction or 'outbound'
     lead_phone = get_lead_phone_for_call(direction, call.from_number, call.to_number)
@@ -129,19 +130,22 @@ def _calculate_contact_tracking(call):
     lead_phone_normalized = ''.join(c for c in lead_phone if c.isdigit())
     today = date.today()
 
-    # Query previous calls to this number
+    # Query previous calls to this number (excluding current call by call_sid)
+    # Usamos call_sid para excluir porque o ID ainda não existe antes do commit
     if direction == 'inbound':
         query = Call.query.filter(
-            Call.from_number.contains(lead_phone_normalized[-10:])  # Last 10 digits
+            and_(
+                Call.from_number.contains(lead_phone_normalized[-10:]),
+                Call.call_sid != call.call_sid  # Exclui a chamada atual pelo SID
+            )
         )
     else:
         query = Call.query.filter(
-            Call.to_number.contains(lead_phone_normalized[-10:])  # Last 10 digits
+            and_(
+                Call.to_number.contains(lead_phone_normalized[-10:]),
+                Call.call_sid != call.call_sid  # Exclui a chamada atual pelo SID
+            )
         )
-
-    # Exclude current call if it has an ID
-    if call.id:
-        query = query.filter(Call.id != call.id)
 
     previous_calls = query.order_by(Call.started_at.asc()).all()
 
