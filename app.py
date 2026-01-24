@@ -1492,6 +1492,62 @@ def admin_delete_calls():
     return jsonify({"deleted": deleted, "count": len(deleted)})
 
 
+@app.route("/calls/<call_sid>/resumo", methods=['PUT', 'PATCH'])
+@jwt_required
+def update_call_resumo(call_sid):
+    """
+    Atualiza o resumo/notas de uma chamada.
+    ---
+    tags:
+      - Calls
+    security:
+      - Bearer: []
+    parameters:
+      - name: call_sid
+        in: path
+        type: string
+        required: true
+        description: SID da chamada
+      - name: body
+        in: body
+        schema:
+          properties:
+            resumo:
+              type: string
+              description: Texto do resumo/notas da ligação
+    responses:
+      200:
+        description: Resumo atualizado
+      404:
+        description: Chamada não encontrada
+    """
+    data = request.get_json() or {}
+    resumo = data.get('resumo', '')
+
+    call = Call.query.filter_by(call_sid=call_sid).first()
+
+    if not call:
+        # Tenta buscar por ID também
+        try:
+            call = Call.query.get(int(call_sid))
+        except (ValueError, TypeError):
+            pass
+
+    if not call:
+        return jsonify({"error": "Call not found"}), 404
+
+    call.resumo = resumo
+    db.session.commit()
+
+    print(f"[RESUMO] Call {call_sid} resumo updated: {resumo[:50]}..." if len(resumo) > 50 else f"[RESUMO] Call {call_sid} resumo updated: {resumo}")
+
+    return jsonify({
+        "success": True,
+        "call_sid": call.call_sid,
+        "resumo": call.resumo
+    })
+
+
 @app.route("/admin/setup_workers", methods=['POST'])
 @jwt_required
 def admin_setup_workers():
@@ -1662,7 +1718,8 @@ def admin_setup_contact_tracking():
             ("contact_number", "INTEGER"),
             ("contact_number_today", "INTEGER"),
             ("previously_answered", "BOOLEAN DEFAULT FALSE"),
-            ("contact_period", "VARCHAR(20)")
+            ("contact_period", "VARCHAR(20)"),
+            ("resumo", "TEXT")  # Resumo/notas da ligação para Attio
         ]
 
         for col_name, col_type in new_columns:

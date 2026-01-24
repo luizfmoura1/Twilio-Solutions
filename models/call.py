@@ -30,6 +30,9 @@ class Call(db.Model):
     previously_answered = db.Column(db.Boolean, default=False)  # Se esse telefone já atendeu antes
     contact_period = db.Column(db.String(20))  # morning, afternoon, evening (horário local do lead)
 
+    # Notes/Summary for Attio integration
+    resumo = db.Column(db.Text)  # Resumo/notas da ligação (para enviar ao Attio)
+
     started_at = db.Column(db.DateTime(timezone=True))
     answered_at = db.Column(db.DateTime(timezone=True))
     ended_at = db.Column(db.DateTime(timezone=True))
@@ -55,6 +58,7 @@ class Call(db.Model):
             'contact_number_today': self.contact_number_today,
             'previously_answered': self.previously_answered,
             'contact_period': self.contact_period,
+            'resumo': self.resumo,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'answered_at': self.answered_at.isoformat() if self.answered_at else None,
             'ended_at': self.ended_at.isoformat() if self.ended_at else None,
