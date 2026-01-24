@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Fyntra Brand Colors */
+    /* #000e2b - Dark Navy (background) */
+    /* #0051ff - Electric Blue (primary) */
+    /* #fafafa - Off White (foreground) */
+    /* #060606 - Near Black */
+    
+    --background: 220 100% 8%;
+    --foreground: 0 0% 98%;
+
+    --card: 220 70% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 220 70% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 220 100% 50%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 220 50% 18%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 220 50% 15%;
+    --muted-foreground: 220 20% 60%;
+
+    --accent: 220 100% 50%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 48 96% 53%;
+    --warning-foreground: 220 100% 8%;
+
+    --border: 220 50% 20%;
+    --input: 220 50% 20%;
+    --ring: 220 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Custom tokens */
+    --dialpad-button: 220 50% 15%;
+    --dialpad-button-hover: 220 50% 22%;
+    --dialpad-button-active: 220 100% 50%;
+    
+    --call-green: 142 71% 45%;
+    --call-red: 0 84% 60%;
+    --call-yellow: 48 96% 53%;
+    
+    --status-available: 142 71% 45%;
+    --status-busy: 48 96% 53%;
+    --status-offline: 0 84% 60%;
+    --status-ringing: 220 100% 50%;
+    --status-in-call: 142 71% 45%;
+
+    --sidebar-background: 220 100% 8%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 220 100% 50%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 220 50% 18%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 50% 20%;
+    --sidebar-ring: 220 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-lg;
+  }
+
+  .call-button {
+    @apply transition-all duration-200 transform active:scale-95;
+  }
+
+  .dialpad-key {
+    @apply bg-dialpad-button hover:bg-dialpad-button-hover active:bg-primary 
+           transition-all duration-150 transform active:scale-95
+           flex flex-col items-center justify-center rounded-xl
+           font-semibold text-foreground select-none cursor-pointer;
+  }
+
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full animate-pulse;
+  }
+
+  .pulse-ring {
+    @apply absolute inset-0 rounded-full animate-ping opacity-25;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+  
+  .shadow-glow {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+  
+  .shadow-glow-success {
+    box-shadow: 0 0 20px hsl(var(--success) / 0.3);
+  }
+  
+  .shadow-glow-destructive {
+    box-shadow: 0 0 20px hsl(var(--destructive) / 0.3);
+  }
+}
