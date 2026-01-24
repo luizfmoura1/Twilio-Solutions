@@ -251,7 +251,9 @@ def voice():
                 status_callback=f"{Config.BASE_URL}/call_status",
                 status_callback_event='initiated ringing answered completed',
                 machine_detection='DetectMessageEnd',
-                machine_detection_timeout=30
+                machine_detection_timeout=30,
+                amd_status_callback=f"{Config.BASE_URL}/amd_callback",
+                amd_status_callback_method='POST'
             )
         else:
             response.say("Invalid destination number.", language='en-US', voice='Polly.Joanna')
@@ -354,6 +356,43 @@ def wait():
     return str(response), 200, {'Content-Type': 'application/xml'}
 
 
+@app.route("/amd_callback", methods=['POST'])
+@validate_twilio_signature
+def amd_callback():
+    """
+    Callback dedicado para AMD (Answering Machine Detection).
+    Recebe o resultado do AMD e atualiza a chamada.
+    """
+    call_sid = request.form.get('CallSid', '')
+    parent_call_sid = request.form.get('ParentCallSid', '')
+    answered_by = request.form.get('AnsweredBy', '')
+    machine_detection_duration = request.form.get('MachineDetectionDuration', '0')
+
+    print(f"[AMD CALLBACK] CallSid={call_sid}, ParentSid={parent_call_sid}, AnsweredBy={answered_by}, Duration={machine_detection_duration}ms")
+
+    # Usa o ParentCallSid para encontrar a chamada pai (outbound)
+    target_call_sid = parent_call_sid if parent_call_sid else call_sid
+
+    call = Call.query.filter_by(call_sid=target_call_sid).first()
+    if not call:
+        print(f"[AMD CALLBACK] Call {target_call_sid} not found")
+        return '', 204
+
+    # Tipos de máquina/voicemail
+    machine_types = ['machine_start', 'machine_end_beep', 'machine_end_silence', 'machine_end_other', 'fax']
+
+    if answered_by in machine_types:
+        call.disposition = 'voicemail'
+        db.session.commit()
+        print(f"[AMD CALLBACK] Call {target_call_sid} marked as voicemail (AnsweredBy: {answered_by})")
+    elif answered_by == 'human':
+        print(f"[AMD CALLBACK] Call {target_call_sid} - Human detected, no action needed")
+    else:
+        print(f"[AMD CALLBACK] Call {target_call_sid} - Unknown AnsweredBy: {answered_by}")
+
+    return '', 204
+
+
 @app.route("/hold_music", methods=['GET', 'POST'])
 def hold_music():
     """TwiML que toca música de espera em loop"""
@@ -363,7 +402,8 @@ def hold_music():
         language='en-US',
         voice='Polly.Joanna'
     )
-    response.play("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3", loop=0)
+    # Música de espera do Twilio (mais alta e confiável)
+    response.play("http://com.twilio.sounds.music.s3.amazonaws.com/MARKOVICHAMP-B8.mp3", loop=0)
     return str(response), 200, {'Content-Type': 'application/xml'}
 
 
@@ -744,6 +784,7 @@ def call_status():
     Eventos: initiated, ringing, in-progress, completed, busy, no-answer, canceled, failed
     """
     call_sid = request.form.get('CallSid', '')
+    parent_call_sid = request.form.get('ParentCallSid', '')  # SID da chamada pai (para outbound-dial)
     status = request.form.get('CallStatus', '')
     duration = request.form.get('CallDuration', '0')
     from_number = request.form.get('From', '')
@@ -752,31 +793,47 @@ def call_status():
     answered_by = request.form.get('AnsweredBy', '')  # AMD result
 
     # Debug: log all incoming webhook data
-    print(f"[WEBHOOK DEBUG] CallSid={call_sid}, Status={status}, Direction={direction}, AnsweredBy={answered_by}")
+    print(f"[WEBHOOK DEBUG] CallSid={call_sid}, ParentSid={parent_call_sid}, Status={status}, Direction={direction}, AnsweredBy={answered_by}")
 
     if not call_sid:
         return '', 400
 
-    # Busca ou cria registro da chamada
-    call = Call.query.filter_by(call_sid=call_sid).first()
+    # Para chamadas outbound-dial (perna do lead), atualiza a chamada pai
+    # Não cria registro novo para evitar duplicatas
+    if direction == 'outbound-dial' and parent_call_sid:
+        call = Call.query.filter_by(call_sid=parent_call_sid).first()
+        if call:
+            print(f"[WEBHOOK] Updating parent call {parent_call_sid} with child status: {status}, AnsweredBy: {answered_by}")
+        else:
+            # Se não encontrar o pai, ignora (não cria duplicata)
+            print(f"[WEBHOOK] Parent call {parent_call_sid} not found, ignoring outbound-dial status")
+            return '', 204
+    else:
+        # Busca ou cria registro da chamada
+        call = Call.query.filter_by(call_sid=call_sid).first()
 
-    if not call:
-        # Determina o número do lead (depende da direção)
-        lead_number = from_number if direction == 'inbound' else to_number
-        lead_state = get_state_from_phone(lead_number)
-        caller_city = request.form.get('FromCity', '') if direction == 'inbound' else ''
+        if not call:
+            # Não cria registros para outbound-dial sem pai
+            if direction == 'outbound-dial':
+                print(f"[WEBHOOK] Ignoring orphan outbound-dial call {call_sid}")
+                return '', 204
 
-        call = Call(
-            call_sid=call_sid,
-            from_number=from_number,
-            to_number=to_number,
-            lead_state=lead_state,
-            direction=direction,
-            caller_city=caller_city,
-            started_at=datetime.now(timezone.utc)
-        )
-        db.session.add(call)
-        _calculate_contact_tracking(call)
+            # Determina o número do lead (depende da direção)
+            lead_number = from_number if direction == 'inbound' else to_number
+            lead_state = get_state_from_phone(lead_number)
+            caller_city = request.form.get('FromCity', '') if direction == 'inbound' else ''
+
+            call = Call(
+                call_sid=call_sid,
+                from_number=from_number,
+                to_number=to_number,
+                lead_state=lead_state,
+                direction=direction,
+                caller_city=caller_city,
+                started_at=datetime.now(timezone.utc)
+            )
+            db.session.add(call)
+            _calculate_contact_tracking(call)
 
     # AMD Detection: Se detectou máquina/voicemail, marca como voicemail
     machine_types = ['machine_start', 'machine_end_beep', 'machine_end_silence', 'machine_end_other', 'fax']
