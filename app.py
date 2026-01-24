@@ -439,6 +439,17 @@ def hold_call():
         return jsonify({"error": "call_sid is required"}), 400
 
     try:
+        # Primeiro verifica se a chamada ainda está ativa
+        call_info = client.calls(call_sid).fetch()
+
+        if call_info.status not in ('in-progress', 'ringing'):
+            print(f"[HOLD] Call {call_sid} is not active (status: {call_info.status})")
+            return jsonify({
+                "error": "Call is not active",
+                "call_status": call_info.status,
+                "message": "Cannot put a completed call on hold"
+            }), 400
+
         # Redireciona a chamada do lead para tocar música de espera
         call = client.calls(call_sid).update(
             url=f"{Config.BASE_URL}/hold_music",
@@ -448,6 +459,13 @@ def hold_call():
         return jsonify({"success": True, "message": "Call placed on hold", "call_sid": call_sid})
     except Exception as e:
         print(f"[HOLD ERROR] {e}")
+        # Verifica se é erro de chamada não encontrada ou já finalizada
+        error_msg = str(e).lower()
+        if 'not found' in error_msg or 'completed' in error_msg or 'canceled' in error_msg:
+            return jsonify({
+                "error": "Call is no longer active",
+                "message": "The call has already ended"
+            }), 400
         return jsonify({"error": str(e)}), 500
 
 
@@ -488,6 +506,17 @@ def unhold_call():
         return jsonify({"error": "call_sid and agent_identity are required"}), 400
 
     try:
+        # Primeiro verifica se a chamada ainda está ativa
+        call_info = client.calls(call_sid).fetch()
+
+        if call_info.status not in ('in-progress', 'ringing'):
+            print(f"[UNHOLD] Call {call_sid} is not active (status: {call_info.status})")
+            return jsonify({
+                "error": "Call is not active",
+                "call_status": call_info.status,
+                "message": "Cannot resume a completed call"
+            }), 400
+
         # Redireciona a chamada de volta para o agente
         # Cria TwiML para conectar de volta
         call = client.calls(call_sid).update(
@@ -497,6 +526,13 @@ def unhold_call():
         return jsonify({"success": True, "message": "Call resumed", "call_sid": call_sid})
     except Exception as e:
         print(f"[UNHOLD ERROR] {e}")
+        # Verifica se é erro de chamada não encontrada ou já finalizada
+        error_msg = str(e).lower()
+        if 'not found' in error_msg or 'completed' in error_msg or 'canceled' in error_msg:
+            return jsonify({
+                "error": "Call is no longer active",
+                "message": "The call has already ended"
+            }), 400
         return jsonify({"error": str(e)}), 500
 
 
