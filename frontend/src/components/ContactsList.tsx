@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Search, Users, Phone, MapPin, Loader2, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Search, Users, Phone, MapPin, Loader2, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { contactsService, Contact } from '@/services/api';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
-import { ScrollArea } from './ui/scroll-area';
 
 interface ContactsListProps {
   onCall: (phoneNumber: string) => void;
@@ -12,11 +11,14 @@ interface ContactsListProps {
   className?: string;
 }
 
+const CONTACTS_PER_PAGE = 6;
+
 export function ContactsList({ onCall, onSelectContact, className }: ContactsListProps) {
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchContacts = useCallback(async (query?: string) => {
     try {
@@ -25,8 +27,11 @@ export function ContactsList({ onCall, onSelectContact, className }: ContactsLis
       } else {
         setIsLoading(true);
       }
-      const results = await contactsService.search(query, 50);
-      setContacts(results);
+      const results = await contactsService.search(query, 100);
+      // Filter contacts that have phone numbers
+      const withPhone = results.filter(c => c.phone);
+      setAllContacts(withPhone);
+      setCurrentPage(1); // Reset to first page on new search
     } catch (error) {
       console.error('Error fetching contacts:', error);
     } finally {
@@ -53,6 +58,13 @@ export function ContactsList({ onCall, onSelectContact, className }: ContactsLis
     return () => clearTimeout(timer);
   }, [searchQuery, fetchContacts]);
 
+  // Pagination
+  const totalPages = Math.ceil(allContacts.length / CONTACTS_PER_PAGE);
+  const paginatedContacts = useMemo(() => {
+    const start = (currentPage - 1) * CONTACTS_PER_PAGE;
+    return allContacts.slice(start, start + CONTACTS_PER_PAGE);
+  }, [allContacts, currentPage]);
+
   const handleCallClick = (e: React.MouseEvent, contact: Contact) => {
     e.stopPropagation();
     if (contact.phone) {
@@ -64,10 +76,12 @@ export function ContactsList({ onCall, onSelectContact, className }: ContactsLis
     onSelectContact?.(contact);
   };
 
-  const filteredContacts = contacts.filter(c => c.phone); // Only show contacts with phone
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
 
   return (
-    <div className={cn('modern-card flex flex-col h-full overflow-hidden', className)}>
+    <div className={cn('modern-card flex flex-col overflow-hidden', className)}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-border/30 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
@@ -78,7 +92,7 @@ export function ContactsList({ onCall, onSelectContact, className }: ContactsLis
             <div>
               <h3 className="font-semibold text-sm">Contatos</h3>
               <span className="text-xs text-muted-foreground">
-                {isLoading ? 'Carregando...' : `${filteredContacts.length} contatos`}
+                {isLoading ? 'Carregando...' : `${allContacts.length} contatos`}
               </span>
             </div>
           </div>
@@ -110,16 +124,16 @@ export function ContactsList({ onCall, onSelectContact, className }: ContactsLis
       </div>
 
       {/* Contacts List */}
-      <ScrollArea className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0">
         {isLoading && !isSearching ? (
-          <div className="py-12 text-center text-muted-foreground">
+          <div className="py-8 text-center text-muted-foreground">
             <div className="w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin mx-auto mb-2" />
             <p className="text-sm">Carregando contatos...</p>
           </div>
-        ) : filteredContacts.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground">
-            <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-2 border border-border/30">
-              <Users className="w-5 h-5 opacity-50" />
+        ) : allContacts.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground">
+            <div className="w-10 h-10 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-2 border border-border/30">
+              <Users className="w-4 h-4 opacity-50" />
             </div>
             <p className="text-sm">
               {searchQuery ? 'Nenhum contato encontrado' : 'Nenhum contato'}
@@ -127,15 +141,15 @@ export function ContactsList({ onCall, onSelectContact, className }: ContactsLis
           </div>
         ) : (
           <div className="divide-y divide-border/20">
-            {filteredContacts.map((contact) => (
+            {paginatedContacts.map((contact) => (
               <div
                 key={contact.id}
                 onClick={() => handleContactClick(contact)}
                 className="px-4 py-2.5 flex items-center gap-3 hover:bg-muted/30 cursor-pointer transition-colors group"
               >
                 {/* Avatar */}
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500/20 to-violet-600/10 flex items-center justify-center border border-violet-500/20 shrink-0">
-                  <span className="text-sm font-semibold text-violet-400">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500/20 to-violet-600/10 flex items-center justify-center border border-violet-500/20 shrink-0">
+                  <span className="text-xs font-semibold text-violet-400">
                     {contact.name?.charAt(0).toUpperCase() || '?'}
                   </span>
                 </div>
@@ -143,12 +157,12 @@ export function ContactsList({ onCall, onSelectContact, className }: ContactsLis
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">{contact.name}</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-mono">{contact.phone}</span>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="font-mono truncate">{contact.phone}</span>
                     {contact.state && (
                       <>
-                        <span className="text-border">|</span>
-                        <span className="flex items-center gap-1">
+                        <span className="text-border shrink-0">|</span>
+                        <span className="flex items-center gap-0.5 shrink-0">
                           <MapPin className="w-3 h-3" />
                           {contact.state}
                         </span>
@@ -161,17 +175,46 @@ export function ContactsList({ onCall, onSelectContact, className }: ContactsLis
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 hover:bg-emerald-500/10 transition-all"
+                  className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 hover:bg-emerald-500/10 transition-all"
                   onClick={(e) => handleCallClick(e, contact)}
                   title="Ligar"
                 >
-                  <Phone className="w-4 h-4 text-emerald-400" />
+                  <Phone className="w-3.5 h-3.5 text-emerald-400" />
                 </Button>
               </div>
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="px-4 py-2 border-t border-border/30 flex items-center justify-between flex-shrink-0">
+          <span className="text-xs text-muted-foreground">
+            {currentPage}/{totalPages}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

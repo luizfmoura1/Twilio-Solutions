@@ -148,7 +148,7 @@ export interface Contact {
 
 // Contacts service - search contacts from Attio
 export const contactsService = {
-  search: async (query?: string, limit: number = 50): Promise<Contact[]> => {
+  search: async (query?: string, limit: number = 100): Promise<Contact[]> => {
     try {
       const params = new URLSearchParams();
       if (query) params.append('q', query);

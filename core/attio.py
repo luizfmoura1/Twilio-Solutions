@@ -170,7 +170,7 @@ class AttioClient:
             "raw": record  # Include raw data for debugging
         }
 
-    def search_people(self, query: str = None, limit: int = 50) -> list:
+    def search_people(self, query: str = None, limit: int = 100) -> list:
         """
         Search for people/contacts by name or list recent contacts.
 
