@@ -7,13 +7,12 @@ import { Header } from '@/components/Header';
 import { Dialpad } from '@/components/Dialpad';
 import { ActiveCall } from '@/components/ActiveCall';
 import { LeadCard } from '@/components/LeadCard';
-import { ContactsList } from '@/components/ContactsList';
 import { CallHistory } from '@/components/CallHistory';
 import { CallNoteModal } from '@/components/CallNoteModal';
 import { MetricsDashboard } from '@/components/MetricsDashboard';
-import { leadService, LeadWithTracking, Contact } from '@/services/api';
+import { leadService, LeadWithTracking } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle, CheckCircle2, Loader2, Phone, User, Users } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Phone } from 'lucide-react';
 import { Lead, ContactPeriod, CallRecord } from '@/types';
 
 export default function Dashboard() {
@@ -43,9 +42,6 @@ export default function Dashboard() {
   const [callEndLead, setCallEndLead] = useState<Lead | null>(null);
   const [callEndPhoneNumber, setCallEndPhoneNumber] = useState<string | null>(null);
   const [callEndDuration, setCallEndDuration] = useState<string | null>(null);
-
-  // Right panel tab state: 'lead' or 'contacts'
-  const [rightPanelTab, setRightPanelTab] = useState<'lead' | 'contacts'>('contacts');
 
   // Clear contact tracking when call ends (local-only UI state)
   const clearContactTracking = useCallback(() => {
@@ -392,19 +388,6 @@ export default function Dashboard() {
     setCallEndDuration(null);
   };
 
-  // Handle contact selection from contacts list
-  const handleSelectContact = async (contact: Contact) => {
-    setSelectedPhoneNumber(contact.phone);
-    setRightPanelTab('lead');
-    dispatch({ type: 'SET_CURRENT_LEAD', payload: null });
-    await fetchLeadByPhone(contact.phone);
-  };
-
-  // Handle call from contacts list
-  const handleCallFromContacts = (phoneNumber: string) => {
-    handleCall(phoneNumber);
-  };
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
@@ -477,50 +460,15 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Right - Lead Info / Contacts */}
-          <div className="lg:col-span-4 flex flex-col">
-            {/* Tab Switcher */}
-            <div className="flex mb-3 bg-muted/20 rounded-lg p-1 border border-border/30">
-              <button
-                onClick={() => setRightPanelTab('contacts')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                  rightPanelTab === 'contacts'
-                    ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                Contatos
-              </button>
-              <button
-                onClick={() => setRightPanelTab('lead')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                  rightPanelTab === 'lead'
-                    ? 'bg-primary/20 text-primary border border-primary/30'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                }`}
-              >
-                <User className="w-4 h-4" />
-                Lead
-              </button>
-            </div>
-
-            {/* Panel Content */}
-            {rightPanelTab === 'contacts' ? (
-              <ContactsList
-                onCall={handleCallFromContacts}
-                onSelectContact={handleSelectContact}
-                className="flex-1 min-h-[360px]"
-              />
-            ) : (
-              <LeadCard
-                lead={state.currentLead}
-                className="flex-1 min-h-[360px]"
-                isLoading={isLoadingLead}
-                phoneNumber={selectedPhoneNumber || state.currentCall?.phoneNumber}
-                onCall={handleCallFromLeadCard}
-              />
-            )}
+          {/* Right - Lead Info */}
+          <div className="lg:col-span-4">
+            <LeadCard
+              lead={state.currentLead}
+              className="h-full min-h-[400px]"
+              isLoading={isLoadingLead}
+              phoneNumber={selectedPhoneNumber || state.currentCall?.phoneNumber}
+              onCall={handleCallFromLeadCard}
+            />
           </div>
 
           {/* Bottom - Call History */}
