@@ -9,9 +9,9 @@ import { CallHistoryNotes } from './CallHistoryNotes';
 
 const dispositionConfig: Record<string, { icon: typeof Phone; label: string; className: string }> = {
   'answered': { icon: Phone, label: 'Atendida', className: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-  'no-answer': { icon: PhoneMissed, label: 'Sem resposta', className: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  'no-answer': { icon: PhoneMissed, label: 'N/Atendida', className: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
   'busy': { icon: PhoneOff, label: 'Ocupado', className: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
-  'voicemail': { icon: Voicemail, label: 'Caixa postal', className: 'text-violet-400 bg-violet-500/10 border-violet-500/20' },
+  'voicemail': { icon: Voicemail, label: 'Voicemail', className: 'text-violet-400 bg-violet-500/10 border-violet-500/20' },
   'failed': { icon: Clock, label: 'Falhou', className: 'text-red-400 bg-red-500/10 border-red-500/20' },
   'canceled': { icon: PhoneOff, label: 'Cancelada', className: 'text-muted-foreground bg-muted/50 border-border/30' },
 };
@@ -141,10 +141,10 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
         {/* Status badge */}
         <div className="w-24 hidden sm:flex justify-center">
           <span className={cn(
-            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border',
+            'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border whitespace-nowrap',
             disposition.className
           )}>
-            <StatusIcon className="w-3 h-3" />
+            <StatusIcon className="w-3 h-3 shrink-0" />
             {disposition.label}
           </span>
         </div>
