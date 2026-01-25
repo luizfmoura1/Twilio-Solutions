@@ -9,38 +9,43 @@ interface StatusBadgeProps {
   className?: string;
 }
 
-const statusConfig: Record<StatusType, { label: string; dotClass: string; bgClass: string }> = {
+const statusConfig: Record<StatusType, { label: string; dotClass: string; bgClass: string; borderClass: string }> = {
   available: {
-    label: 'Disponível',
-    dotClass: 'bg-status-available',
-    bgClass: 'bg-status-available/20 text-status-available',
+    label: 'Disponivel',
+    dotClass: 'bg-emerald-400',
+    bgClass: 'bg-emerald-500/10 text-emerald-400',
+    borderClass: 'border-emerald-500/20',
   },
   busy: {
     label: 'Ocupado',
-    dotClass: 'bg-status-busy',
-    bgClass: 'bg-status-busy/20 text-status-busy',
+    dotClass: 'bg-amber-400',
+    bgClass: 'bg-amber-500/10 text-amber-400',
+    borderClass: 'border-amber-500/20',
   },
   offline: {
     label: 'Offline',
-    dotClass: 'bg-status-offline',
-    bgClass: 'bg-status-offline/20 text-status-offline',
+    dotClass: 'bg-slate-400',
+    bgClass: 'bg-slate-500/10 text-slate-400',
+    borderClass: 'border-slate-500/20',
   },
   ringing: {
     label: 'Tocando',
-    dotClass: 'bg-status-ringing',
-    bgClass: 'bg-status-ringing/20 text-status-ringing',
+    dotClass: 'bg-blue-400',
+    bgClass: 'bg-blue-500/10 text-blue-400',
+    borderClass: 'border-blue-500/20',
   },
   'in-call': {
     label: 'Em chamada',
-    dotClass: 'bg-status-in-call',
-    bgClass: 'bg-status-in-call/20 text-status-in-call',
+    dotClass: 'bg-emerald-400',
+    bgClass: 'bg-emerald-500/10 text-emerald-400',
+    borderClass: 'border-emerald-500/20',
   },
 };
 
 const sizeClasses = {
-  sm: 'text-xs px-2 py-0.5',
-  md: 'text-sm px-2.5 py-1',
-  lg: 'text-base px-3 py-1.5',
+  sm: 'text-xs px-2.5 py-1',
+  md: 'text-sm px-3 py-1.5',
+  lg: 'text-base px-4 py-2',
 };
 
 const dotSizes = {
@@ -55,16 +60,20 @@ export function StatusBadge({ status, showLabel = true, size = 'md', className }
   return (
     <div
       className={cn(
-        'inline-flex items-center gap-2 rounded-full font-medium',
+        'inline-flex items-center gap-2 rounded-lg font-medium border',
         config.bgClass,
+        config.borderClass,
         sizeClasses[size],
         className
       )}
     >
       <span className="relative flex">
-        <span className={cn('rounded-full', config.dotClass, dotSizes[size])} />
+        <span
+          className={cn('rounded-full', config.dotClass, dotSizes[size])}
+          style={{ boxShadow: `0 0 6px currentColor` }}
+        />
         {(status === 'ringing' || status === 'in-call') && (
-          <span className={cn('absolute inset-0 rounded-full animate-ping', config.dotClass, 'opacity-75')} />
+          <span className={cn('absolute inset-0 rounded-full animate-ping', config.dotClass, 'opacity-50')} />
         )}
       </span>
       {showLabel && <span>{config.label}</span>}

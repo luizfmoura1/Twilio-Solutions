@@ -17,13 +17,13 @@ export function DialpadButton({ digit, letters, onClick, className }: DialpadBut
       type="button"
       onClick={handleClick}
       className={cn(
-        'dialpad-key w-16 h-16 md:w-20 md:h-20',
+        'dialpad-key aspect-square w-full max-w-[72px]',
         className
       )}
     >
-      <span className="text-2xl md:text-3xl font-bold">{digit}</span>
+      <span className="text-xl sm:text-2xl font-bold">{digit}</span>
       {letters && (
-        <span className="text-[10px] md:text-xs tracking-widest text-muted-foreground mt-0.5">
+        <span className="text-[9px] sm:text-[10px] tracking-[0.15em] text-muted-foreground/70 mt-0.5 font-medium">
           {letters}
         </span>
       )}

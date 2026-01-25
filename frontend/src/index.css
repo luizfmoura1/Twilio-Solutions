@@ -4,71 +4,67 @@
 
 @layer base {
   :root {
-    /* Fyntra Brand Colors */
-    /* #000e2b - Dark Navy (background) */
-    /* #0051ff - Electric Blue (primary) */
-    /* #fafafa - Off White (foreground) */
-    /* #060606 - Near Black */
-    
-    --background: 220 100% 8%;
-    --foreground: 0 0% 98%;
+    /* Modern Dark Theme - Refined */
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
 
-    --card: 220 70% 12%;
-    --card-foreground: 0 0% 98%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 220 70% 12%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 220 100% 50%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 5%;
 
-    --secondary: 220 50% 18%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 50% 15%;
-    --muted-foreground: 220 20% 60%;
+    --muted: 217 33% 12%;
+    --muted-foreground: 215 20% 55%;
 
-    --accent: 220 100% 50%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 222 47% 5%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 98%;
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
 
-    --warning: 48 96% 53%;
-    --warning-foreground: 220 100% 8%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 5%;
 
-    --border: 220 50% 20%;
-    --input: 220 50% 20%;
-    --ring: 220 100% 50%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
 
     --radius: 0.75rem;
 
-    /* Custom tokens */
-    --dialpad-button: 220 50% 15%;
-    --dialpad-button-hover: 220 50% 22%;
-    --dialpad-button-active: 220 100% 50%;
-    
-    --call-green: 142 71% 45%;
-    --call-red: 0 84% 60%;
-    --call-yellow: 48 96% 53%;
-    
-    --status-available: 142 71% 45%;
-    --status-busy: 48 96% 53%;
-    --status-offline: 0 84% 60%;
-    --status-ringing: 220 100% 50%;
-    --status-in-call: 142 71% 45%;
+    /* Dialpad tokens */
+    --dialpad-button: 217 33% 12%;
+    --dialpad-button-hover: 217 40% 18%;
+    --dialpad-button-active: 217 91% 60%;
 
-    --sidebar-background: 220 100% 8%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 220 100% 50%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 220 50% 18%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 220 50% 20%;
-    --sidebar-ring: 220 100% 50%;
+    /* Status tokens */
+    --call-green: 142 76% 36%;
+    --call-red: 0 72% 51%;
+    --call-yellow: 38 92% 50%;
+
+    --status-available: 142 76% 36%;
+    --status-busy: 38 92% 50%;
+    --status-offline: 0 72% 51%;
+    --status-ringing: 217 91% 60%;
+    --status-in-call: 142 76% 36%;
+
+    --sidebar-background: 222 47% 5%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 217 91% 60%;
   }
 }
 
@@ -79,49 +75,325 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
   }
 }
 
 @layer components {
+  /* Modern card with subtle gradient border */
+  .modern-card {
+    @apply relative rounded-xl overflow-hidden;
+    background: linear-gradient(
+      145deg,
+      hsl(var(--card)) 0%,
+      hsl(var(--card) / 0.8) 100%
+    );
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow:
+      0 4px 6px -1px hsl(var(--background) / 0.2),
+      0 2px 4px -2px hsl(var(--background) / 0.1),
+      inset 0 1px 0 hsl(var(--foreground) / 0.03);
+  }
+
+  .modern-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--foreground) / 0.1),
+      transparent
+    );
+  }
+
+  /* Legacy glass-card (kept for compatibility, but refined) */
   .glass-card {
-    @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-lg;
+    @apply modern-card;
   }
 
-  .call-button {
-    @apply transition-all duration-200 transform active:scale-95;
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
   }
 
+  /* Modern button base */
+  .btn-modern {
+    @apply relative overflow-hidden transition-all duration-200;
+  }
+
+  .btn-modern::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      transparent 0%,
+      hsl(var(--foreground) / 0.05) 50%,
+      transparent 100%
+    );
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .btn-modern:hover::after {
+    opacity: 1;
+  }
+
+  /* Dialpad key - modern style */
   .dialpad-key {
-    @apply bg-dialpad-button hover:bg-dialpad-button-hover active:bg-primary 
-           transition-all duration-150 transform active:scale-95
-           flex flex-col items-center justify-center rounded-xl
-           font-semibold text-foreground select-none cursor-pointer;
+    @apply relative flex flex-col items-center justify-center rounded-xl
+           font-semibold text-foreground select-none cursor-pointer
+           transition-all duration-200 ease-out;
+    background: linear-gradient(
+      145deg,
+      hsl(var(--dialpad-button)) 0%,
+      hsl(var(--dialpad-button) / 0.7) 100%
+    );
+    border: 1px solid hsl(var(--border) / 0.3);
+    box-shadow:
+      0 2px 4px hsl(var(--background) / 0.3),
+      inset 0 1px 0 hsl(var(--foreground) / 0.05);
   }
 
+  .dialpad-key:hover {
+    background: linear-gradient(
+      145deg,
+      hsl(var(--dialpad-button-hover)) 0%,
+      hsl(var(--dialpad-button-hover) / 0.8) 100%
+    );
+    transform: translateY(-1px);
+    box-shadow:
+      0 4px 8px hsl(var(--background) / 0.4),
+      inset 0 1px 0 hsl(var(--foreground) / 0.08);
+  }
+
+  .dialpad-key:active {
+    transform: translateY(0) scale(0.98);
+    background: hsl(var(--primary));
+    box-shadow:
+      0 1px 2px hsl(var(--background) / 0.3),
+      inset 0 1px 0 hsl(var(--foreground) / 0.1);
+  }
+
+  /* Status dot with glow */
   .status-dot {
-    @apply w-2.5 h-2.5 rounded-full animate-pulse;
+    @apply w-2.5 h-2.5 rounded-full;
+    box-shadow: 0 0 8px currentColor;
   }
 
+  .status-dot-pulse {
+    @apply animate-pulse;
+  }
+
+  /* Pulse ring animation */
   .pulse-ring {
-    @apply absolute inset-0 rounded-full animate-ping opacity-25;
+    @apply absolute inset-0 rounded-full;
+    animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Call button styles */
+  .call-button {
+    @apply transition-all duration-200;
+  }
+
+  .call-button:active {
+    transform: scale(0.95);
+  }
+
+  /* Metric card with gradient accent */
+  .metric-card {
+    @apply modern-card p-4;
+  }
+
+  .metric-card-highlight {
+    @apply relative;
+  }
+
+  .metric-card-highlight::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(
+      180deg,
+      hsl(var(--primary)),
+      hsl(var(--primary) / 0.3)
+    );
+    border-radius: 0 2px 2px 0;
+  }
+
+  /* Input field modern style */
+  .input-modern {
+    @apply bg-muted/30 border-border/50 rounded-lg px-4 py-2
+           focus:border-primary/50 focus:ring-2 focus:ring-primary/20
+           transition-all duration-200 placeholder:text-muted-foreground/50;
+  }
+
+  /* Table row hover */
+  .table-row-hover {
+    @apply transition-colors duration-150;
+  }
+
+  .table-row-hover:hover {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted) / 0.5) 0%,
+      hsl(var(--muted) / 0.3) 100%
+    );
+  }
+
+  /* Badge modern */
+  .badge-modern {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Header gradient */
+  .header-gradient {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--card)) 0%,
+      hsl(var(--card) / 0.95) 100%
+    );
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
   }
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
-  }
-  
+  /* Glow effects */
   .shadow-glow {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.25), 0 0 40px hsl(var(--primary) / 0.1);
   }
-  
+
   .shadow-glow-success {
-    box-shadow: 0 0 20px hsl(var(--success) / 0.3);
+    box-shadow: 0 0 20px hsl(var(--success) / 0.25), 0 0 40px hsl(var(--success) / 0.1);
   }
-  
+
   .shadow-glow-destructive {
-    box-shadow: 0 0 20px hsl(var(--destructive) / 0.3);
+    box-shadow: 0 0 20px hsl(var(--destructive) / 0.25), 0 0 40px hsl(var(--destructive) / 0.1);
+  }
+
+  /* Gradient borders */
+  .border-gradient {
+    position: relative;
+  }
+
+  .border-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--primary) / 0.1));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Shine effect */
+  .shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shine::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+      45deg,
+      transparent 40%,
+      hsl(var(--foreground) / 0.03) 50%,
+      transparent 60%
+    );
+    animation: shine 3s ease-in-out infinite;
+  }
+
+  @keyframes shine {
+    0%, 100% {
+      transform: translateX(-100%) translateY(-100%) rotate(45deg);
+    }
+    50% {
+      transform: translateX(100%) translateY(100%) rotate(45deg);
+    }
+  }
+
+  /* Fade in animation */
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Slide in animation */
+  .animate-slide-in {
+    animation: slide-in 0.3s ease-out;
+  }
+
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Scale in animation */
+  .animate-scale-in {
+    animation: scale-in 0.2s ease-out;
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 }

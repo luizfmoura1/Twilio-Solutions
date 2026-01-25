@@ -6,21 +6,20 @@ import { format } from 'date-fns';
 import { Button } from './ui/button';
 import { ContactHistoryBadge } from './ContactHistoryBadge';
 import { CallHistoryNotes } from './CallHistoryNotes';
-// Disposition configuration with Portuguese labels and colors
+
 const dispositionConfig: Record<string, { icon: typeof Phone; label: string; className: string }> = {
-  'answered': { icon: Phone, label: 'Atendida', className: 'text-success bg-success/10' },
-  'no-answer': { icon: PhoneMissed, label: 'Não atendeu', className: 'text-yellow-500 bg-yellow-500/10' },
-  'busy': { icon: PhoneOff, label: 'Ocupado', className: 'text-orange-500 bg-orange-500/10' },
-  'voicemail': { icon: Voicemail, label: 'Caixa postal', className: 'text-purple-500 bg-purple-500/10' },
-  'failed': { icon: Clock, label: 'Falhou', className: 'text-destructive bg-destructive/10' },
-  'canceled': { icon: PhoneOff, label: 'Cancelada', className: 'text-muted-foreground bg-muted' },
+  'answered': { icon: Phone, label: 'Atendida', className: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+  'no-answer': { icon: PhoneMissed, label: 'Sem resposta', className: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  'busy': { icon: PhoneOff, label: 'Ocupado', className: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+  'voicemail': { icon: Voicemail, label: 'Caixa postal', className: 'text-violet-400 bg-violet-500/10 border-violet-500/20' },
+  'failed': { icon: Clock, label: 'Falhou', className: 'text-red-400 bg-red-500/10 border-red-500/20' },
+  'canceled': { icon: PhoneOff, label: 'Cancelada', className: 'text-muted-foreground bg-muted/50 border-border/30' },
 };
 
 const getDisposition = (disposition: string | null) => {
   return dispositionConfig[disposition || 'failed'] || dispositionConfig['failed'];
 };
 
-// Helper to get worker display name
 const getWorkerName = (record: CallRecord): string => {
   if (record.worker_name) {
     return record.worker_name.charAt(0).toUpperCase() + record.worker_name.slice(1);
@@ -41,14 +40,13 @@ interface CallHistoryRowProps {
 
 export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }: CallHistoryRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Calculate time to answer (difference between answered_at and started_at)
   const getTimeToAnswer = (): string | null => {
     if (record.disposition !== 'answered' || !record.answered_at || !record.started_at) {
       return null;
@@ -56,16 +54,13 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
     const answeredAt = new Date(record.answered_at);
     const startedAt = new Date(record.started_at);
     const diffSeconds = Math.floor((answeredAt.getTime() - startedAt.getTime()) / 1000);
-    if (diffSeconds < 0 || diffSeconds > 300) return null; // Sanity check: max 5 minutes
+    if (diffSeconds < 0 || diffSeconds > 300) return null;
     return `${diffSeconds}s`;
   };
 
   const timeToAnswer = getTimeToAnswer();
-
   const disposition = getDisposition(record.disposition);
   const StatusIcon = disposition.icon;
-  
-  // Check if this row has notes or should show notes
   const hasNotes = !!record.resumo;
 
   const handlePlayClick = (e: React.MouseEvent) => {
@@ -93,47 +88,47 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
   };
 
   return (
-    <div className="hover:bg-muted/50 transition-colors">
-      {/* Main row */}
+    <div className="table-row-hover border-b border-border/30 last:border-0">
       <div className="px-4 py-3 grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto_auto] gap-3 items-center">
         {/* Direction icon */}
         <div className={cn(
-          'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
-          record.direction === 'outbound' ? 'bg-primary/10' : 'bg-success/10'
+          'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border',
+          record.direction === 'outbound'
+            ? 'bg-blue-500/10 border-blue-500/20'
+            : 'bg-emerald-500/10 border-emerald-500/20'
         )}>
           {record.direction === 'outbound' ? (
-            <ArrowUpRight className="w-4 h-4 text-primary" />
+            <ArrowUpRight className="w-4 h-4 text-blue-400" />
           ) : (
-            <ArrowDownLeft className="w-4 h-4 text-success" />
+            <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
           )}
         </div>
 
-        {/* Main info - Phone, Date, Direction */}
+        {/* Main info */}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <button
               onClick={handlePhoneClick}
-              className="font-medium text-sm truncate text-primary hover:underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 rounded"
+              className="font-medium text-sm truncate text-foreground hover:text-primary transition-colors focus:outline-none"
             >
               {record.phoneNumber}
             </button>
-            {/* Location: city, state or just state */}
             {(record.caller_city || record.lead_state) && (
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded hidden sm:inline">
-                {record.caller_city && record.lead_state 
+              <span className="text-[10px] text-muted-foreground/70 bg-muted/30 px-1.5 py-0.5 rounded hidden sm:inline border border-border/20">
+                {record.caller_city && record.lead_state
                   ? `${record.caller_city}, ${record.lead_state}`
                   : record.lead_state || record.caller_city}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-            <span>{format(record.timestamp, 'dd/MM HH:mm')}</span>
-            <span className="hidden sm:inline">•</span>
-            <span className="hidden sm:inline">{record.direction === 'outbound' ? 'Saída' : 'Entrada'}</span>
+            <span className="font-mono">{format(record.timestamp, 'dd/MM HH:mm')}</span>
+            <span className="hidden sm:inline text-border">|</span>
+            <span className="hidden sm:inline">{record.direction === 'outbound' ? 'Saida' : 'Entrada'}</span>
           </div>
         </div>
 
-        {/* Contact number column */}
+        {/* Contact badge */}
         <div className="w-12 hidden sm:flex justify-center">
           <ContactHistoryBadge
             contactNumber={record.contact_number}
@@ -143,10 +138,10 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
           />
         </div>
 
-        {/* Status badge - Fixed width column */}
+        {/* Status badge */}
         <div className="w-24 hidden sm:flex justify-center">
           <span className={cn(
-            'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap',
+            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border',
             disposition.className
           )}>
             <StatusIcon className="w-3 h-3" />
@@ -154,40 +149,42 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
           </span>
         </div>
 
-        {/* Time to answer - Fixed width column */}
+        {/* Time to answer */}
         <div className="w-14 hidden sm:flex justify-center" title="Tempo para atender">
           {timeToAnswer ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono text-blue-500 bg-blue-500/10">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono text-violet-400 bg-violet-500/10 border border-violet-500/20">
               <Timer className="w-3 h-3" />
               {timeToAnswer}
             </span>
           ) : (
-            <span className="text-xs text-muted-foreground">-</span>
+            <span className="text-xs text-muted-foreground/40">-</span>
           )}
         </div>
 
-        {/* Duration - Fixed width column */}
-        <div className="w-12 text-center">
-          <span className="text-xs font-mono text-muted-foreground">
+        {/* Duration */}
+        <div className="w-14 text-center">
+          <span className="text-xs font-mono text-muted-foreground bg-muted/30 px-2 py-0.5 rounded">
             {formatDuration(record.duration)}
           </span>
         </div>
 
-        {/* SDR - Fixed width column */}
-        <div className="w-20 hidden md:flex items-center gap-1 text-xs text-muted-foreground">
-          <User className="w-3 h-3 shrink-0" />
+        {/* SDR */}
+        <div className="w-20 hidden md:flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center border border-border/30">
+            <User className="w-3 h-3" />
+          </div>
           <span className="truncate">{getWorkerName(record)}</span>
         </div>
 
-        {/* Actions - Fixed width column */}
+        {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
           {record.recording_url && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-8 w-8 hover:bg-primary/10"
               onClick={handlePlayClick}
-              title="Ouvir gravação"
+              title="Ouvir gravacao"
             >
               <Play className="w-3.5 h-3.5 text-primary" />
             </Button>
@@ -195,19 +192,19 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8 hover:bg-emerald-500/10"
             onClick={handleCallClick}
             title="Ligar novamente"
           >
-            <PhoneCall className="w-3.5 h-3.5 text-success" />
+            <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
           </Button>
         </div>
 
-        {/* Expand/collapse for notes */}
+        {/* Expand */}
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="h-8 w-8"
           onClick={handleExpandClick}
           title={isExpanded ? 'Ocultar notas' : 'Ver/adicionar notas'}
         >
@@ -216,15 +213,15 @@ export function CallHistoryRow({ record, onClick, onPlayRecording, onViewLead }:
           ) : (
             <ChevronDown className={cn(
               'w-3.5 h-3.5',
-              hasNotes ? 'text-primary' : 'text-muted-foreground'
+              hasNotes ? 'text-primary' : 'text-muted-foreground/50'
             )} />
           )}
         </Button>
       </div>
 
-      {/* Expanded notes section */}
+      {/* Expanded notes */}
       {isExpanded && (
-        <div className="px-4 pb-3 pl-14">
+        <div className="px-4 pb-4 pl-16 animate-fade-in">
           <CallHistoryNotes
             callSid={record.call_sid}
             initialValue={record.resumo}

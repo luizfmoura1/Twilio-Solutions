@@ -1,20 +1,18 @@
 import { useState } from 'react';
 import { Lead } from '@/types';
-import { 
-  Phone, 
-  MapPin, 
-  User, 
+import {
+  Phone,
+  MapPin,
+  User,
   Mail,
   FileText,
   Scale,
   DollarSign,
   Briefcase,
-  Tag,
-  AlertCircle,
-  PhoneCall,
   ChevronDown,
   ChevronUp,
-  ExternalLink
+  ExternalLink,
+  PhoneCall
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,10 +33,7 @@ export function LeadCard({ lead, className, isLoading, phoneNumber, callerCity, 
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const displayPhone = lead?.phone || phoneNumber;
 
-  // Build Attio URL if we have a record_id
   const attioUrl = lead?.id ? `https://app.attio.com/fyntra/person/${lead.id}/overview` : null;
-
-  // Location display: prioritize Attio data, fallback to callerCity
   const displayCity = lead?.city || callerCity;
   const displayState = lead?.state;
 
@@ -55,10 +50,10 @@ export function LeadCard({ lead, className, isLoading, phoneNumber, callerCity, 
 
   if (isLoading) {
     return (
-      <div className={cn('glass-card rounded-lg p-6 animate-fade-in h-full', className)}>
-        <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-8">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-sm">Buscando lead...</p>
+      <div className={cn('modern-card p-5 animate-fade-in h-full', className)}>
+        <div className="flex flex-col items-center justify-center h-full py-8">
+          <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-3" />
+          <p className="text-sm text-muted-foreground">Buscando lead...</p>
         </div>
       </div>
     );
@@ -66,13 +61,15 @@ export function LeadCard({ lead, className, isLoading, phoneNumber, callerCity, 
 
   if (!lead) {
     return (
-      <div className={cn('glass-card rounded-lg p-6 animate-fade-in h-full', className)}>
-        <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-8">
-          <User className="w-12 h-12 mb-3 opacity-50" />
+      <div className={cn('modern-card p-5 animate-fade-in h-full', className)}>
+        <div className="flex flex-col items-center justify-center h-full py-8">
+          <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4 border border-border/30">
+            <User className="w-7 h-7 text-muted-foreground/50" />
+          </div>
           {displayPhone && (
-            <p className="font-medium text-foreground mb-1">{displayPhone}</p>
+            <p className="font-mono font-medium text-foreground mb-1">{displayPhone}</p>
           )}
-          <p className="text-sm mb-4">Lead não encontrado no CRM</p>
+          <p className="text-sm text-muted-foreground mb-4">Lead nao encontrado no CRM</p>
           {displayPhone && onCall && (
             <Button onClick={handleCall} className="gap-2">
               <PhoneCall className="w-4 h-4" />
@@ -85,140 +82,134 @@ export function LeadCard({ lead, className, isLoading, phoneNumber, callerCity, 
   }
 
   return (
-    <div className={cn('glass-card rounded-lg p-5 animate-fade-in flex flex-col overflow-hidden', className)}>
+    <div className={cn('modern-card p-5 animate-fade-in flex flex-col overflow-hidden', className)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-foreground">Informações do Lead</h3>
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+            <User className="w-4 h-4 text-primary" />
+          </div>
+          <span className="text-sm font-medium text-muted-foreground">Lead Info</span>
           {attioUrl && (
             <a
               href={attioUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary transition-colors"
+              className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
               title="Abrir no Attio"
             >
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}
         </div>
         {lead.classification && (
           <span className={cn(
-            'px-2.5 py-1 rounded text-xs font-semibold',
-            lead.classification === 'SQL' && 'bg-success/20 text-success',
-            lead.classification === 'MQL' && 'bg-warning/20 text-warning',
-            !['SQL', 'MQL'].includes(lead.classification) && 'bg-muted text-foreground'
+            'px-2.5 py-1 rounded-md text-xs font-semibold border',
+            lead.classification === 'SQL' && 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+            lead.classification === 'MQL' && 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+            !['SQL', 'MQL'].includes(lead.classification) && 'bg-muted/50 text-foreground border-border/30'
           )}>
             {lead.classification}
           </span>
         )}
       </div>
-      
+
       <ScrollArea className="flex-1 pr-3 min-h-0">
         <div className="space-y-4">
-          {/* Name & Phone Row */}
-          <div className="flex items-center gap-2 pb-3 border-b border-border">
-            <User className="w-4 h-4 text-primary flex-shrink-0" />
-            <span className="font-semibold text-base truncate">{lead.name}</span>
-            <span className="text-muted-foreground">•</span>
-            <span className="text-muted-foreground truncate">{lead.phone}</span>
+          {/* Name & Phone */}
+          <div className="pb-3 border-b border-border/30">
+            <h3 className="font-semibold text-lg mb-1">{lead.name}</h3>
+            <p className="text-sm text-muted-foreground font-mono">{lead.phone}</p>
           </div>
 
           {/* Info Grid */}
           <div className="space-y-2.5">
-            {/* Row 1: Location + Workers Comp */}
-            <div className="grid grid-cols-2 gap-x-4">
-              {/* Location - prioritize Attio, fallback to callerCity */}
-              {(displayCity || displayState) && (
-                <div className="flex items-center gap-2 min-w-0">
-                  <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  <span 
-                    className="truncate text-sm" 
-                    title={displayCity && displayState ? `${displayCity}, ${displayState}` : displayCity || displayState}
-                  >
-                    {displayCity && displayState 
-                      ? `${displayCity}, ${displayState}` 
-                      : displayCity || displayState}
-                  </span>
+            {(displayCity || displayState) && (
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-muted/30 flex items-center justify-center border border-border/20">
+                  <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
                 </div>
-              )}
-
-              {/* Workers Comp */}
-              {lead.workers_comp && (
-                <div className="flex items-center gap-2 min-w-0">
-                  <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  <span className={cn('text-sm', lead.workers_comp.toLowerCase() === 'yes' ? 'text-warning' : '')}>
-                    WC: {lead.workers_comp.toLowerCase() === 'yes' ? 'Sim' : 'Não'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Row 2: Case Type - full width */}
-            {lead.case_type && (
-              <div className="flex items-center gap-2 min-w-0">
-                <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-sm" title={lead.case_type}>{lead.case_type}</span>
+                <span className="text-sm">
+                  {displayCity && displayState
+                    ? `${displayCity}, ${displayState}`
+                    : displayCity || displayState}
+                </span>
               </div>
             )}
 
-            {/* Row 3: Advance Value */}
+            {lead.case_type && (
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-muted/30 flex items-center justify-center border border-border/20">
+                  <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                </div>
+                <span className="text-sm">{lead.case_type}</span>
+              </div>
+            )}
+
             {(lead.advance_value || lead.advance_seeking) && (
-              <div className="flex items-center gap-2 min-w-0">
-                <DollarSign className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <span className="font-medium text-sm">
-                  ${lead.advance_value 
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                </div>
+                <span className="text-sm font-medium text-emerald-400">
+                  ${lead.advance_value
                     ? lead.advance_value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                     : lead.advance_seeking}
                 </span>
               </div>
             )}
 
-            {/* Email - full width */}
             {lead.email && (
-              <div className="flex items-center gap-2 min-w-0">
-                <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <span className="truncate text-muted-foreground text-sm" title={lead.email}>{lead.email}</span>
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-muted/30 flex items-center justify-center border border-border/20">
+                  <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                </div>
+                <span className="text-sm text-muted-foreground truncate">{lead.email}</span>
+              </div>
+            )}
+
+            {lead.has_attorney && (
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-muted/30 flex items-center justify-center border border-border/20">
+                  <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
+                </div>
+                <span className="text-sm">
+                  {lead.has_attorney.toLowerCase() === 'yes' ? 'Com advogado' : 'Sem advogado'}
+                </span>
               </div>
             )}
           </div>
 
-          {/* Has Attorney - separate row for better visibility */}
-          {lead.has_attorney && (
-            <div className="flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-sm">{lead.has_attorney.toLowerCase() === 'yes' ? 'Com advogado' : 'Sem advogado'}</span>
-            </div>
-          )}
-
           {/* Attorney Info */}
           {lead.attorney_info && (
-            <div className="pt-3 border-t border-border">
-              <div className="flex items-start gap-2">
-                <Scale className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                <span className="break-words">{lead.attorney_info}</span>
+            <div className="pt-3 border-t border-border/30">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-muted/30 flex items-center justify-center border border-border/20 mt-0.5">
+                  <Scale className="w-3.5 h-3.5 text-muted-foreground" />
+                </div>
+                <span className="text-sm break-words">{lead.attorney_info}</span>
               </div>
             </div>
           )}
 
-          {/* Description - Collapsible */}
+          {/* Description */}
           {lead.description && (
-            <div className="pt-3 border-t border-border">
-              <p className="text-sm text-muted-foreground mb-2">Descrição</p>
-              <p className="leading-relaxed break-words">{displayDescription}</p>
+            <div className="pt-3 border-t border-border/30">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Descricao</p>
+              <p className="text-sm leading-relaxed break-words">{displayDescription}</p>
               {shouldTruncateDescription && (
                 <button
                   onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                  className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 mt-2 transition-colors"
+                  className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-2 transition-colors"
                 >
                   {isDescriptionExpanded ? (
                     <>
-                      <ChevronUp className="w-4 h-4" />
+                      <ChevronUp className="w-3.5 h-3.5" />
                       Ver menos
                     </>
                   ) : (
                     <>
-                      <ChevronDown className="w-4 h-4" />
+                      <ChevronDown className="w-3.5 h-3.5" />
                       Ver mais
                     </>
                   )}
@@ -229,9 +220,9 @@ export function LeadCard({ lead, className, isLoading, phoneNumber, callerCity, 
 
           {/* Notes (legacy) */}
           {lead.notes && !lead.description && (
-            <div className="pt-3 border-t border-border">
-              <p className="text-sm text-muted-foreground mb-2">Notas</p>
-              <p className="break-words">{lead.notes}</p>
+            <div className="pt-3 border-t border-border/30">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Notas</p>
+              <p className="text-sm break-words">{lead.notes}</p>
             </div>
           )}
         </div>
@@ -239,8 +230,11 @@ export function LeadCard({ lead, className, isLoading, phoneNumber, callerCity, 
 
       {/* Call Button */}
       {onCall && (
-        <div className="pt-4 mt-4 border-t border-border flex-shrink-0">
-          <Button onClick={handleCall} className="w-full gap-2">
+        <div className="pt-4 mt-4 border-t border-border/30 flex-shrink-0">
+          <Button
+            onClick={handleCall}
+            className="w-full gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 border border-emerald-400/30 shadow-lg shadow-emerald-500/20"
+          >
             <PhoneCall className="w-4 h-4" />
             Ligar
           </Button>

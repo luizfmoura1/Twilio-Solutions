@@ -15,26 +15,23 @@ interface ActiveCallProps {
   onHangup?: () => void;
   onToggleMute?: () => void;
   onToggleHold?: () => void;
-  // State from parent
   isAccepting?: boolean;
   isMuted?: boolean;
   isOnHold?: boolean;
   isHoldLoading?: boolean;
   isHoldDisabled?: boolean;
   isCallConnected?: boolean;
-  // Contact tracking info
   contactNumber?: number;
   contactNumberToday?: number;
   previouslyAnswered?: boolean;
   contactPeriod?: ContactPeriod;
-  // Call SID for notes
   callSid?: string | null;
 }
 
-export function ActiveCall({ 
-  className, 
-  onAnswer, 
-  onReject, 
+export function ActiveCall({
+  className,
+  onAnswer,
+  onReject,
   onHangup,
   onToggleMute,
   onToggleHold,
@@ -52,49 +49,37 @@ export function ActiveCall({
 }: ActiveCallProps) {
   const { state, endCall } = useApp();
   const { callState, currentCall, currentLead } = state;
-  
-  // Use props if provided, otherwise fall back to currentCall state
+
   const isMuted = isMutedProp ?? currentCall?.isMuted ?? false;
   const isOnHold = isOnHoldProp ?? currentCall?.isOnHold ?? false;
-  
-  // Hold button should only be visible when call is truly connected
   const showHoldButton = isCallConnected && !isHoldDisabled;
 
-  const handleAnswer = () => {
-    onAnswer?.();
-  };
-
+  const handleAnswer = () => onAnswer?.();
   const handleReject = () => {
     onReject?.();
     endCall();
   };
+  const handleHangup = () => onHangup?.();
+  const handleMute = () => onToggleMute?.();
+  const handleHold = () => onToggleHold?.();
 
-  const handleHangup = () => {
-    onHangup?.();
-  };
-
-  const handleMute = () => {
-    onToggleMute?.();
-  };
-
-  const handleHold = () => {
-    onToggleHold?.();
-  };
-
-  // Incoming call modal
+  // Incoming call
   if (callState === 'incoming' && currentCall) {
     return (
-      <div className={cn('glass-card rounded-lg p-6 animate-fade-in', className)}>
-        <div className="flex flex-col items-center text-center py-8">
+      <div className={cn('modern-card p-6 animate-fade-in', className)}>
+        <div className="flex flex-col items-center text-center py-6">
           <div className="relative mb-6">
-            <div className="w-20 h-20 rounded-full bg-success/20 flex items-center justify-center">
-              <PhoneIncoming className="w-10 h-10 text-success" />
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/20 flex items-center justify-center border border-emerald-500/30">
+              <PhoneIncoming className="w-9 h-9 text-emerald-400" />
             </div>
-            <div className="absolute inset-0 rounded-full bg-success/30 animate-pulse-ring" />
+            <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
+            <div className="absolute inset-[-8px] rounded-full border-2 border-emerald-500/30 animate-pulse" />
           </div>
 
-          <h3 className="text-xl font-semibold mb-1">Chamada Recebida</h3>
-          <p className="text-2xl font-mono mb-2">{currentCall.phoneNumber}</p>
+          <p className="text-xs font-medium text-emerald-400 uppercase tracking-wider mb-2">
+            Chamada Recebida
+          </p>
+          <p className="text-2xl font-mono font-bold mb-1">{currentCall.phoneNumber}</p>
           {currentLead && (
             <p className="text-muted-foreground">{currentLead.name}</p>
           )}
@@ -123,17 +108,19 @@ export function ActiveCall({
     );
   }
 
-  // No active call - show ready state or idle
+  // No active call
   if ((callState === 'idle' || callState === 'ready') && !currentCall) {
     return (
-      <div className={cn('glass-card rounded-lg p-6', className)}>
-        <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-16">
-          <Phone className="w-16 h-16 mb-4 opacity-30" />
-          <p className="text-lg">Nenhuma chamada ativa</p>
-          <p className="text-sm mt-1">
-            {callState === 'ready' 
-              ? 'Use o teclado para iniciar uma chamada' 
-              : 'Aguardando conexão com Twilio...'}
+      <div className={cn('modern-card p-6', className)}>
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-12">
+          <div className="w-20 h-20 rounded-full bg-muted/30 flex items-center justify-center mb-4 border border-border/30">
+            <Phone className="w-9 h-9 opacity-40" />
+          </div>
+          <p className="text-lg font-medium text-foreground/70">Nenhuma chamada ativa</p>
+          <p className="text-sm mt-1 text-muted-foreground/70">
+            {callState === 'ready'
+              ? 'Use o teclado para iniciar uma chamada'
+              : 'Aguardando conexao com Twilio...'}
           </p>
         </div>
       </div>
@@ -163,12 +150,12 @@ export function ActiveCall({
   const hasContactInfo = contactNumber !== undefined || previouslyAnswered !== undefined;
 
   return (
-    <div className={cn('glass-card rounded-lg p-6 animate-fade-in', className)}>
+    <div className={cn('modern-card p-6 animate-fade-in', className)}>
       <div className="flex flex-col items-center text-center">
         <StatusBadge status={getStatusType()} className="mb-4" />
 
         <div className="mb-2">
-          <p className="text-sm text-muted-foreground mb-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
             {currentCall?.direction === 'outbound' ? 'Ligando para' : 'Recebendo de'}
           </p>
           {currentLead ? (
@@ -181,7 +168,6 @@ export function ActiveCall({
           )}
         </div>
 
-        {/* Contact tracking info - shown during active calls */}
         {hasContactInfo && (
           <div className="mb-4 w-full">
             <ContactHistoryBadge
@@ -197,20 +183,26 @@ export function ActiveCall({
 
         <div className="my-6">
           {callState === 'in-call' && currentCall?.startTime ? (
-            <CallTimer
-              startTime={currentCall.startTime}
-              className="text-4xl font-mono font-bold text-primary"
-            />
+            <div className="relative">
+              <CallTimer
+                startTime={currentCall.startTime}
+                className="text-4xl font-mono font-bold text-primary"
+              />
+              <div className="absolute -inset-4 bg-primary/5 rounded-xl -z-10" />
+            </div>
           ) : (
-            <p className="text-lg text-muted-foreground animate-pulse">{getStatusLabel()}</p>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <p className="text-lg text-muted-foreground">{getStatusLabel()}</p>
+            </div>
           )}
         </div>
 
         {callState === 'in-call' && (
-          <div className="flex items-center gap-4 mt-4">
+          <div className="flex items-center gap-3 mt-4">
             <CallControlButton
               icon={isMuted ? MicOff : Mic}
-              label={isMuted ? 'Ativar microfone' : 'Silenciar'}
+              label={isMuted ? 'Ativar' : 'Mudo'}
               variant={isMuted ? 'warning' : 'default'}
               active={isMuted}
               onClick={handleMute}
@@ -218,7 +210,7 @@ export function ActiveCall({
             {showHoldButton && (
               <CallControlButton
                 icon={isOnHold ? Play : Pause}
-                label={isHoldLoading ? 'Aguarde...' : isOnHold ? 'Retomar' : 'Pausar'}
+                label={isHoldLoading ? '...' : isOnHold ? 'Retomar' : 'Espera'}
                 variant={isOnHold ? 'warning' : 'default'}
                 active={isOnHold}
                 onClick={handleHold}
@@ -236,7 +228,6 @@ export function ActiveCall({
           </div>
         )}
 
-        {/* Notes section during call */}
         {callState === 'in-call' && callSid && (
           <CallNotes callSid={callSid} className="mt-6 w-full max-w-md" />
         )}

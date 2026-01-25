@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { Card, CardContent } from './ui/card';
 import { Phone, PhoneIncoming, TrendingUp, Clock } from 'lucide-react';
 import { CallRecord } from '@/types';
+import { cn } from '@/lib/utils';
 
 interface MetricsDashboardProps {
   calls: CallRecord[];
@@ -10,7 +10,6 @@ interface MetricsDashboardProps {
 
 export function MetricsDashboard({ calls, isLoading }: MetricsDashboardProps) {
   const metrics = useMemo(() => {
-    // Filter calls from today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -24,7 +23,6 @@ export function MetricsDashboard({ calls, isLoading }: MetricsDashboardProps) {
     const answeredToday = todayCalls.filter(call => call.disposition === 'answered').length;
     const answerRate = totalToday > 0 ? Math.round((answeredToday / totalToday) * 100) : 0;
 
-    // Average duration of answered calls
     const answeredCalls = todayCalls.filter(call => call.disposition === 'answered' && call.duration > 0);
     const avgDuration = answeredCalls.length > 0
       ? Math.round(answeredCalls.reduce((sum, call) => sum + call.duration, 0) / answeredCalls.length)
@@ -44,67 +42,110 @@ export function MetricsDashboard({ calls, isLoading }: MetricsDashboardProps) {
       title: 'Chamadas Hoje',
       value: metrics.totalToday,
       icon: Phone,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10',
+      gradient: 'from-blue-500/20 to-blue-600/10',
+      iconBg: 'bg-blue-500/20',
+      iconColor: 'text-blue-400',
+      borderColor: 'border-blue-500/20',
     },
     {
       title: 'Atendidas',
       value: metrics.answeredToday,
       icon: PhoneIncoming,
-      color: 'text-success',
-      bgColor: 'bg-success/10',
+      gradient: 'from-emerald-500/20 to-emerald-600/10',
+      iconBg: 'bg-emerald-500/20',
+      iconColor: 'text-emerald-400',
+      borderColor: 'border-emerald-500/20',
     },
     {
       title: 'Taxa Atendimento',
       value: `${metrics.answerRate}%`,
       icon: TrendingUp,
-      color: metrics.answerRate >= 50 ? 'text-success' : metrics.answerRate >= 30 ? 'text-yellow-500' : 'text-destructive',
-      bgColor: metrics.answerRate >= 50 ? 'bg-success/10' : metrics.answerRate >= 30 ? 'bg-yellow-500/10' : 'bg-destructive/10',
+      gradient: metrics.answerRate >= 50
+        ? 'from-emerald-500/20 to-emerald-600/10'
+        : metrics.answerRate >= 30
+        ? 'from-amber-500/20 to-amber-600/10'
+        : 'from-red-500/20 to-red-600/10',
+      iconBg: metrics.answerRate >= 50
+        ? 'bg-emerald-500/20'
+        : metrics.answerRate >= 30
+        ? 'bg-amber-500/20'
+        : 'bg-red-500/20',
+      iconColor: metrics.answerRate >= 50
+        ? 'text-emerald-400'
+        : metrics.answerRate >= 30
+        ? 'text-amber-400'
+        : 'text-red-400',
+      borderColor: metrics.answerRate >= 50
+        ? 'border-emerald-500/20'
+        : metrics.answerRate >= 30
+        ? 'border-amber-500/20'
+        : 'border-red-500/20',
     },
     {
-      title: 'Duração Média',
+      title: 'Duracao Media',
       value: formatDuration(metrics.avgDuration),
       icon: Clock,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-500/10',
+      gradient: 'from-violet-500/20 to-violet-600/10',
+      iconBg: 'bg-violet-500/20',
+      iconColor: 'text-violet-400',
+      borderColor: 'border-violet-500/20',
     },
   ];
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="glass-card">
-            <CardContent className="p-4">
-              <div className="animate-pulse">
-                <div className="h-4 bg-muted rounded w-24 mb-2"></div>
-                <div className="h-8 bg-muted rounded w-16"></div>
+          <div key={i} className="modern-card p-4">
+            <div className="animate-pulse space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="h-3 bg-muted rounded w-20"></div>
+                <div className="w-9 h-9 bg-muted rounded-lg"></div>
               </div>
-            </CardContent>
-          </Card>
+              <div className="h-7 bg-muted rounded w-16"></div>
+            </div>
+          </div>
         ))}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      {metricCards.map((metric) => {
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {metricCards.map((metric, index) => {
         const Icon = metric.icon;
         return (
-          <Card key={metric.title} className="glass-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">{metric.title}</p>
-                  <p className="text-2xl font-bold">{metric.value}</p>
-                </div>
-                <div className={`w-10 h-10 rounded-full ${metric.bgColor} flex items-center justify-center`}>
-                  <Icon className={`w-5 h-5 ${metric.color}`} />
+          <div
+            key={metric.title}
+            className={cn(
+              'modern-card relative overflow-hidden p-4 transition-all duration-300 hover:scale-[1.02]',
+              'border-l-2',
+              metric.borderColor
+            )}
+            style={{ animationDelay: `${index * 50}ms` }}
+          >
+            {/* Background gradient */}
+            <div className={cn(
+              'absolute inset-0 bg-gradient-to-br opacity-50',
+              metric.gradient
+            )} />
+
+            {/* Content */}
+            <div className="relative z-10">
+              <div className="flex items-start justify-between mb-3">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {metric.title}
+                </span>
+                <div className={cn(
+                  'w-9 h-9 rounded-lg flex items-center justify-center',
+                  metric.iconBg
+                )}>
+                  <Icon className={cn('w-4.5 h-4.5', metric.iconColor)} />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              <p className="text-2xl font-bold tracking-tight">{metric.value}</p>
+            </div>
+          </div>
         );
       })}
     </div>

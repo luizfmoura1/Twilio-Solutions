@@ -394,31 +394,31 @@ export default function Dashboard() {
 
       {/* Twilio Status Banner */}
       {!isInitialized && !twilioError && (
-        <div className="bg-warning/20 text-warning px-4 py-2 flex items-center justify-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-sm">Conectando ao Twilio...</span>
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+          <span className="text-sm text-amber-400">Conectando ao Twilio...</span>
         </div>
       )}
-      
+
       {twilioError && (
-        <div className="bg-destructive/20 text-destructive px-4 py-2 flex items-center justify-center gap-2">
-          <AlertCircle className="w-4 h-4" />
-          <span className="text-sm">Erro Twilio: {twilioError}</span>
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2.5 flex items-center justify-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-400" />
+          <span className="text-sm text-red-400">Erro Twilio: {twilioError}</span>
         </div>
       )}
-      
+
       {isInitialized && !twilioError && state.callState === 'ready' && !autoCallNumber && (
-        <div className="bg-success/20 text-success px-4 py-2 flex items-center justify-center gap-2">
-          <CheckCircle2 className="w-4 h-4" />
-          <span className="text-sm">Conectado - Pronto para fazer e receber chamadas</span>
+        <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-2.5 flex items-center justify-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span className="text-sm text-emerald-400">Conectado - Pronto para fazer e receber chamadas</span>
         </div>
       )}
 
       {/* Auto-call indicator */}
       {autoCallNumber && (
-        <div className="bg-primary/20 text-primary px-4 py-2 flex items-center justify-center gap-2">
-          <Phone className="w-4 h-4 animate-pulse" />
-          <span className="text-sm">Iniciando ligação para {autoCallNumber}...</span>
+        <div className="bg-blue-500/10 border-b border-blue-500/20 px-4 py-2.5 flex items-center justify-center gap-2">
+          <Phone className="w-4 h-4 animate-pulse text-blue-400" />
+          <span className="text-sm text-blue-400">Iniciando ligacao para {autoCallNumber}...</span>
         </div>
       )}
 

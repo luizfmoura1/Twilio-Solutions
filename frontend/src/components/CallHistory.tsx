@@ -226,47 +226,49 @@ export function CallHistory({ onCallNumber, onViewLead, className, refreshTrigge
   }, [searchQuery, filters]);
 
   return (
-    <div className={cn('glass-card rounded-lg overflow-hidden', className)}>
-      <div className="px-6 py-4 border-b border-border">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <History className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold">Histórico de Chamadas</h3>
-            {!isLoading && (
-              <span className="text-xs text-muted-foreground">
-                ({filteredCalls.length} chamadas)
-              </span>
-            )}
+    <div className={cn('modern-card overflow-hidden', className)}>
+      <div className="px-5 py-4 border-b border-border/30">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+              <History className="w-4.5 h-4.5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-base">Historico de Chamadas</h3>
+              {!isLoading && (
+                <span className="text-xs text-muted-foreground">
+                  {filteredCalls.length} chamadas
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={fetchCalls}
-              disabled={isLoading}
-            >
-              <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 hover:bg-primary/10"
+            onClick={fetchCalls}
+            disabled={isLoading}
+          >
+            <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
+          </Button>
         </div>
-        
+
         {/* Search bar with filter toggle */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
             <Input
               type="text"
-              placeholder="Buscar por número..."
+              placeholder="Buscar por numero..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-9 h-10 bg-muted/50 border-border"
+              className="pl-9 pr-9 h-10 bg-muted/20 border-border/30 rounded-lg focus:border-primary/30 transition-colors"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-muted/50 rounded-md transition-colors"
               >
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
@@ -275,12 +277,12 @@ export function CallHistory({ onCallNumber, onViewLead, className, refreshTrigge
           <Button
             variant={filtersOpen || activeFilterCount > 0 ? 'secondary' : 'ghost'}
             size="icon"
-            className="h-10 w-10 shrink-0 relative"
+            className="h-10 w-10 shrink-0 relative border border-border/30 hover:border-primary/30 transition-colors"
             onClick={() => setFiltersOpen(!filtersOpen)}
           >
             <SlidersHorizontal className="w-4 h-4" />
             {activeFilterCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-background">
                 {activeFilterCount}
               </span>
             )}
@@ -302,42 +304,44 @@ export function CallHistory({ onCallNumber, onViewLead, className, refreshTrigge
 
       {/* Audio player / loading state */}
       {isLoadingAudio && (
-        <div className="px-4 py-3 bg-muted/50 border-b border-border flex items-center gap-3">
+        <div className="px-4 py-3 bg-primary/5 border-b border-border/30 flex items-center gap-3">
           <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          <span className="text-sm text-muted-foreground">Carregando gravação...</span>
+          <span className="text-sm text-muted-foreground">Carregando gravacao...</span>
         </div>
       )}
-      
+
       {audioUrl && !isLoadingAudio && (
-        <div className="px-4 py-3 bg-muted/50 border-b border-border flex items-center gap-3">
+        <div className="px-4 py-3 bg-primary/5 border-b border-border/30 flex items-center gap-3">
           <audio controls autoPlay src={audioUrl} className="flex-1 h-8" />
-          <Button variant="ghost" size="sm" onClick={handleCloseAudio}>
+          <Button variant="ghost" size="sm" onClick={handleCloseAudio} className="hover:bg-primary/10">
             Fechar
           </Button>
         </div>
       )}
 
       {isLoading ? (
-        <div className="py-12 text-center text-muted-foreground">
-          <RefreshCw className="w-10 h-10 mx-auto mb-2 animate-spin opacity-50" />
-          <p>Carregando...</p>
+        <div className="py-16 text-center text-muted-foreground">
+          <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm">Carregando...</p>
         </div>
       ) : error ? (
-        <div className="py-12 text-center text-destructive">
-          <p>{error}</p>
-          <Button variant="link" onClick={fetchCalls} className="mt-2">
+        <div className="py-16 text-center">
+          <p className="text-destructive mb-2">{error}</p>
+          <Button variant="link" onClick={fetchCalls} className="text-primary">
             Tentar novamente
           </Button>
         </div>
       ) : filteredCalls.length === 0 ? (
-        <div className="py-12 text-center text-muted-foreground">
-          <History className="w-10 h-10 mx-auto mb-2 opacity-50" />
-          <p>{searchQuery ? 'Nenhuma chamada encontrada' : 'Nenhuma chamada registrada'}</p>
+        <div className="py-16 text-center text-muted-foreground">
+          <div className="w-14 h-14 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-3 border border-border/30">
+            <History className="w-6 h-6 opacity-50" />
+          </div>
+          <p className="text-sm">{searchQuery ? 'Nenhuma chamada encontrada' : 'Nenhuma chamada registrada'}</p>
         </div>
       ) : (
         <>
           {/* Call list */}
-          <div className="divide-y divide-border">
+          <div>
             {paginatedCalls.map((record) => (
               <CallHistoryRow
                 key={record.id}
