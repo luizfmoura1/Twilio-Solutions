@@ -138,6 +138,34 @@ export interface LeadWithTracking {
   };
 }
 
+// Contact type for contacts list
+export interface Contact {
+  id: string;
+  name: string;
+  phone: string;
+  state?: string;
+}
+
+// Contacts service - search contacts from Attio
+export const contactsService = {
+  search: async (query?: string, limit: number = 50): Promise<Contact[]> => {
+    try {
+      const params = new URLSearchParams();
+      if (query) params.append('q', query);
+      params.append('limit', limit.toString());
+
+      const response = await apiRequest<{ contacts: Contact[]; count: number }>(
+        `/attio/contacts?${params.toString()}`
+      );
+
+      return response.contacts || [];
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+      return [];
+    }
+  },
+};
+
 export const leadService = {
   getByPhone: async (phone: string): Promise<Lead | null> => {
     try {

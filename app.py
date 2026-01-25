@@ -1907,6 +1907,51 @@ def add_attio_note():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/attio/contacts", methods=['GET'])
+@jwt_required
+def search_attio_contacts():
+    """
+    Busca contatos no Attio por nome ou telefone
+    ---
+    tags:
+      - Attio
+    security:
+      - Bearer: []
+    parameters:
+      - name: q
+        in: query
+        type: string
+        required: false
+        description: Termo de busca (nome ou telefone)
+      - name: limit
+        in: query
+        type: integer
+        required: false
+        default: 50
+        description: Limite de resultados
+    responses:
+      200:
+        description: Lista de contatos
+      500:
+        description: Erro na integração com Attio
+    """
+    query = request.args.get('q', '').strip()
+    limit = int(request.args.get('limit', 50))
+
+    attio = get_attio_client()
+    if not attio:
+        return jsonify({"error": "Attio integration not configured"}), 500
+
+    try:
+        contacts = attio.search_people(query if query else None, limit)
+        print(f"[ATTIO] Contacts search: query='{query}', found={len(contacts)}")
+        return jsonify({"contacts": contacts, "count": len(contacts)})
+
+    except Exception as e:
+        print(f"[ATTIO ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ============== MAIN ==============
 
 if __name__ == "__main__":

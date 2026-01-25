@@ -170,6 +170,82 @@ class AttioClient:
             "raw": record  # Include raw data for debugging
         }
 
+    def search_people(self, query: str = None, limit: int = 50) -> list:
+        """
+        Search for people/contacts by name or list recent contacts.
+
+        Args:
+            query: Optional search string (searches name, email, phone)
+            limit: Maximum number of results
+
+        Returns:
+            List of formatted person records
+        """
+        # Build the query - if no query, just list recent records
+        query_data = {
+            "limit": limit,
+            "sorts": [
+                {
+                    "attribute": "created_at",
+                    "direction": "desc"
+                }
+            ]
+        }
+
+        # If there's a search query, add filter
+        if query and query.strip():
+            # Attio uses contains filter for text search
+            # We'll search by name (requires specific filter structure)
+            query_data["filter"] = {
+                "or": [
+                    {"name": {"$contains": query}},
+                    {"phone_numbers": {"$contains": query}},
+                ]
+            }
+
+        result = self._request("POST", "/objects/people/records/query", query_data)
+
+        if result and result.get("data"):
+            return [self._format_person_simple(record) for record in result["data"]]
+
+        return []
+
+    def _format_person_simple(self, record: dict) -> dict:
+        """Format Attio person record to simplified contact dict"""
+        values = record.get("values", {})
+
+        # Extract name
+        name_data = values.get("name", [])
+        name = ""
+        if name_data and len(name_data) > 0:
+            name_obj = name_data[0]
+            first = name_obj.get("first_name", "")
+            last = name_obj.get("last_name", "")
+            name = f"{first} {last}".strip()
+
+        # Extract primary phone
+        phone_data = values.get("phone_numbers", [])
+        phone = ""
+        if phone_data and len(phone_data) > 0:
+            phone = phone_data[0].get("phone_number", "")
+
+        # Extract state
+        state_data = values.get("state", [])
+        state = ""
+        if state_data and len(state_data) > 0:
+            state_obj = state_data[0]
+            if isinstance(state_obj, dict):
+                state = state_obj.get("option", "") or state_obj.get("value", "")
+            else:
+                state = str(state_obj)
+
+        return {
+            "id": record.get("id", {}).get("record_id", ""),
+            "name": name or "Sem nome",
+            "phone": phone,
+            "state": state,
+        }
+
     def add_note_to_person(self, record_id: str, note_content: str) -> bool:
         """
         Add a note to a person record.
