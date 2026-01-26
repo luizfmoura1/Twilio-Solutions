@@ -4,7 +4,7 @@ import { CallControlButton } from './CallControlButton';
 import { StatusBadge } from './StatusBadge';
 import { ContactHistoryBadge } from './ContactHistoryBadge';
 import { CallNotes } from './CallNotes';
-import { Mic, MicOff, Pause, Play, PhoneOff, Phone, PhoneIncoming } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Phone, PhoneIncoming } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ContactPeriod } from '@/types';
 
@@ -51,8 +51,6 @@ export function ActiveCall({
   const { callState, currentCall, currentLead } = state;
 
   const isMuted = isMutedProp ?? currentCall?.isMuted ?? false;
-  const isOnHold = isOnHoldProp ?? currentCall?.isOnHold ?? false;
-  const showHoldButton = isCallConnected && !isHoldDisabled;
 
   const handleAnswer = () => onAnswer?.();
   const handleReject = () => {
@@ -61,7 +59,6 @@ export function ActiveCall({
   };
   const handleHangup = () => onHangup?.();
   const handleMute = () => onToggleMute?.();
-  const handleHold = () => onToggleHold?.();
 
   // Incoming call
   if (callState === 'incoming' && currentCall) {
@@ -135,14 +132,13 @@ export function ActiveCall({
       case 'ringing':
         return 'Chamando...';
       case 'in-call':
-        return isOnHold ? 'Em espera' : 'Em chamada';
+        return 'Em chamada';
       default:
         return '';
     }
   };
 
   const getStatusType = () => {
-    if (isOnHold) return 'busy';
     if (callState === 'in-call') return 'in-call';
     return 'ringing';
   };
@@ -207,17 +203,6 @@ export function ActiveCall({
               active={isMuted}
               onClick={handleMute}
             />
-            {showHoldButton && (
-              <CallControlButton
-                icon={isOnHold ? Play : Pause}
-                label={isHoldLoading ? '...' : isOnHold ? 'Retomar' : 'Espera'}
-                variant={isOnHold ? 'warning' : 'default'}
-                active={isOnHold}
-                onClick={handleHold}
-                loading={isHoldLoading}
-                disabled={isHoldLoading}
-              />
-            )}
             <CallControlButton
               icon={PhoneOff}
               label="Desligar"
