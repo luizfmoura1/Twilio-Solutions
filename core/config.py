@@ -40,7 +40,7 @@ class Config:
 
     # JWT
     JWT_SECRET: str = get_jwt_secret()
-    JWT_EXPIRATION_HOURS: int = int(os.environ.get('JWT_EXPIRATION_HOURS', '24'))
+    JWT_EXPIRATION_HOURS: int = int(os.environ.get('JWT_EXPIRATION_HOURS', '720'))  # 30 days default
 
     # Development
     SKIP_TWILIO_VALIDATION: bool = os.environ.get('SKIP_TWILIO_VALIDATION', 'false').lower() == 'true'

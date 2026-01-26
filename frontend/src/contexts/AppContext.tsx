@@ -107,18 +107,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         // Validate token by making an authenticated call
         await twilioTokenService.getAccessToken();
-        
+
         // Token is valid, restore session
         dispatch({
           type: 'SET_USER',
           payload: { user: JSON.parse(savedUser), token: savedToken },
         });
-      } catch (error) {
-        // Token is invalid, clear storage
-        console.log('Token validation failed, clearing session');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setAuthToken(null);
+      } catch (error: any) {
+        // Only clear session if it's an authentication error (401/403 or "Session expired")
+        const isAuthError = error?.message?.includes('Session expired') ||
+                           error?.message?.includes('401') ||
+                           error?.message?.includes('403') ||
+                           error?.message?.includes('Unauthorized');
+
+        if (isAuthError) {
+          console.log('Token invalid, clearing session');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setAuthToken(null);
+        } else {
+          // For other errors (network, etc), keep the session and try to continue
+          console.log('Token validation failed with non-auth error, keeping session:', error?.message);
+          dispatch({
+            type: 'SET_USER',
+            payload: { user: JSON.parse(savedUser), token: savedToken },
+          });
+        }
       }
       
       setIsValidating(false);
