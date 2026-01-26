@@ -452,12 +452,17 @@ def hold_call():
                 "message": "Cannot put a completed call on hold"
             }), 400
 
+        # Usa BASE_URL ou constrói a partir da request
+        base_url = Config.BASE_URL or request.host_url.rstrip('/')
+        hold_url = f"{base_url}/hold_music"
+        print(f"[HOLD] Redirecting call {call_sid} to {hold_url}")
+
         # Redireciona a chamada do lead para tocar música de espera
         call = client.calls(call_sid).update(
-            url=f"{Config.BASE_URL}/hold_music",
+            url=hold_url,
             method='POST'
         )
-        print(f"[HOLD] Call {call_sid} placed on hold")
+        print(f"[HOLD] Call {call_sid} placed on hold successfully")
         return jsonify({"success": True, "message": "Call placed on hold", "call_sid": call_sid})
     except Exception as e:
         print(f"[HOLD ERROR] {e}")
