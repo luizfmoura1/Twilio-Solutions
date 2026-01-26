@@ -93,12 +93,17 @@ class TwilioService {
     call.on('accept', () => {
       console.log('Call accepted');
       // Try to get the lead's call SID from call parameters
-      // For outbound: DialCallSid or ParentCallSid
-      // For inbound: the call.parameters.CallSid is the lead's leg
+      // For outbound: DialCallSid is the lead's leg
+      // For inbound: ParentCallSid is passed via <Parameter> in TwiML
       const params = call.parameters as Record<string, string>;
-      this.leadCallSid = params.DialCallSid || params.ParentCallSid || params.CallSid || null;
+      // Check customParameters first (where TwiML <Parameter> values go)
+      const customParams = (call as any).customParameters as Map<string, string> | undefined;
+      const parentCallSid = customParams?.get('ParentCallSid') || params.ParentCallSid;
+
+      this.leadCallSid = params.DialCallSid || parentCallSid || params.CallSid || null;
       console.log('Lead call SID:', this.leadCallSid);
       console.log('Call parameters:', params);
+      console.log('Custom parameters:', customParams ? Object.fromEntries(customParams) : 'none');
       this.holdState = false;
       this.callConnected = true;
       this.callbacks.onStateChange?.('in-call');

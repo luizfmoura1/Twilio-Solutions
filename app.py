@@ -329,7 +329,9 @@ def voice():
             ))
 
             for identity in client_identities:
-                dial.client(identity)
+                # Pass parent call SID so client can use it for hold
+                client_elem = dial.client(identity)
+                client_elem.parameter(name='ParentCallSid', value=call_sid)
 
         else:
             # ===== FLEX: Enqueue para TaskRouter =====

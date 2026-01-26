@@ -31,7 +31,7 @@ const activeClasses = {
 
 const sizeClasses = {
   sm: 'w-11 h-11',
-  md: 'w-13 h-13',
+  md: 'w-14 h-14',
   lg: 'w-16 h-16',
 };
 
@@ -75,7 +75,7 @@ export function CallControlButton({
           <Icon className={iconSizes[size]} />
         )}
       </button>
-      <span className="text-[10px] text-muted-foreground font-medium">{label}</span>
+      <span className="text-[11px] text-muted-foreground font-medium whitespace-nowrap">{label}</span>
     </div>
   );
 }
