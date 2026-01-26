@@ -84,10 +84,10 @@ export function ActiveCall({
             <p className="text-muted-foreground">{currentLead.name}</p>
           )}
 
-          <div className="flex gap-4 mt-8">
+          <div className="flex gap-6 mt-8">
             <CallControlButton
               icon={PhoneOff}
-              label="Rejeitar"
+              label="Recusar"
               variant="danger"
               size="lg"
               onClick={handleReject}
