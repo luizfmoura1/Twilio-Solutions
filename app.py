@@ -111,10 +111,12 @@ def _calculate_contact_tracking(call):
     """
     Calculate contact tracking values for a call.
     Sets: contact_number, contact_number_today, previously_answered, contact_period
+
+    Contact number counts ALL contacts with a lead (both inbound and outbound).
     """
     from core.phone_utils import get_contact_period, get_lead_phone_for_call
     from datetime import date
-    from sqlalchemy import and_
+    from sqlalchemy import or_, and_
 
     direction = call.direction or 'outbound'
     lead_phone = get_lead_phone_for_call(direction, call.from_number, call.to_number)
@@ -126,41 +128,103 @@ def _calculate_contact_tracking(call):
         call.contact_period = get_contact_period(call.started_at, call.lead_state)
         return
 
-    # Normaliza o número
-    lead_phone_normalized = ''.join(c for c in lead_phone if c.isdigit())
+    # Normaliza o número do lead (últimos 10 dígitos)
+    lead_phone_normalized = ''.join(c for c in lead_phone if c.isdigit())[-10:]
     today = date.today()
 
-    # Query previous calls to this number (excluding current call by call_sid)
-    # Usamos call_sid para excluir porque o ID ainda não existe antes do commit
-    if direction == 'inbound':
-        query = Call.query.filter(
-            and_(
-                Call.from_number.contains(lead_phone_normalized[-10:]),
-                Call.call_sid != call.call_sid  # Exclui a chamada atual pelo SID
-            )
+    # Lista de números Twilio (não devem ser considerados como leads)
+    twilio_numbers = [
+        Config.TWILIO_NUMBER,
+        Config.CALLER_ID_FL,
+        Config.CALLER_ID_TX,
+        Config.CALLER_ID_DEFAULT
+    ]
+    twilio_numbers_normalized = [
+        ''.join(c for c in n if c.isdigit())[-10:]
+        for n in twilio_numbers if n
+    ]
+
+    # Se o "lead" é na verdade um número Twilio, não calcular tracking
+    if lead_phone_normalized in twilio_numbers_normalized:
+        call.contact_number = None
+        call.contact_number_today = None
+        call.previously_answered = False
+        call.contact_period = get_contact_period(call.started_at, call.lead_state)
+        return
+
+    # Query ALL previous calls with this lead (both inbound and outbound)
+    # - Inbound: lead ligou para nós (from_number = lead)
+    # - Outbound: nós ligamos para o lead (to_number = lead)
+    query = Call.query.filter(
+        and_(
+            or_(
+                Call.from_number.contains(lead_phone_normalized),
+                Call.to_number.contains(lead_phone_normalized)
+            ),
+            Call.call_sid != call.call_sid  # Exclui a chamada atual
         )
-    else:
-        query = Call.query.filter(
-            and_(
-                Call.to_number.contains(lead_phone_normalized[-10:]),
-                Call.call_sid != call.call_sid  # Exclui a chamada atual pelo SID
-            )
-        )
+    )
 
     previous_calls = query.order_by(Call.started_at.asc()).all()
 
-    # 1. Contact number (total)
-    call.contact_number = len(previous_calls) + 1
+    # Filtra para remover chamadas onde o "lead" é um número Twilio
+    # (evita contar chamadas internas/testes)
+    filtered_calls = []
+    for c in previous_calls:
+        # Determina qual é o número do lead nesta chamada
+        if c.direction == 'inbound':
+            c_lead = ''.join(ch for ch in (c.from_number or '') if ch.isdigit())[-10:]
+        else:
+            c_lead = ''.join(ch for ch in (c.to_number or '') if ch.isdigit())[-10:]
+
+        # Só conta se o lead não é um número Twilio
+        if c_lead and c_lead not in twilio_numbers_normalized:
+            filtered_calls.append(c)
+
+    # 1. Contact number (total de contatos com este lead)
+    call.contact_number = len(filtered_calls) + 1
 
     # 2. Contact number today
-    today_calls = [c for c in previous_calls if c.started_at and c.started_at.date() == today]
+    today_calls = [c for c in filtered_calls if c.started_at and c.started_at.date() == today]
     call.contact_number_today = len(today_calls) + 1
 
-    # 3. Previously answered
-    call.previously_answered = any(c.disposition == 'answered' for c in previous_calls)
+    # 3. Previously answered (já atendeu alguma vez?)
+    call.previously_answered = any(c.disposition == 'answered' for c in filtered_calls)
 
     # 4. Contact period
     call.contact_period = get_contact_period(call.started_at, call.lead_state)
+
+
+def _sanitize_disposition(call):
+    """
+    Sanitize and fix disposition based on call data.
+    Fixes common issues like:
+    - NULL disposition with duration > 0 → answered
+    - no-answer with duration > 0 → answered
+    - NULL disposition with duration = 0 → no-answer
+    """
+    # Se já tem uma disposition válida e consistente, não mexe
+    valid_dispositions = ('answered', 'voicemail', 'busy', 'failed', 'canceled')
+    if call.disposition in valid_dispositions:
+        # Mas corrige no-answer com duration > 0 (bug)
+        if call.disposition == 'no-answer' and call.duration and call.duration > 0:
+            call.disposition = 'answered'
+            if not call.answered_at and call.started_at:
+                call.answered_at = call.started_at
+            print(f"[SANITIZE] Fixed: no-answer with duration {call.duration}s → answered")
+        return
+
+    # Disposition é NULL ou inválido - determinar baseado na duração
+    if call.duration and call.duration > 0:
+        # Teve duração > 0, então foi atendida
+        call.disposition = 'answered'
+        if not call.answered_at and call.started_at:
+            call.answered_at = call.started_at
+        print(f"[SANITIZE] Fixed NULL disposition with duration {call.duration}s → answered")
+    else:
+        # Duração 0 ou NULL, não foi atendida
+        call.disposition = 'no-answer'
+        print(f"[SANITIZE] Fixed NULL disposition with no duration → no-answer")
 
 
 def _calculate_duration(call):
@@ -946,6 +1010,9 @@ def call_status():
         call.disposition = 'canceled'
         call.duration = _calculate_duration(call)
 
+    # Sanitiza disposition para corrigir inconsistências
+    _sanitize_disposition(call)
+
     db.session.commit()
 
     print(f"[STATUS] Call {call_sid}: {status} | Disposition: {call.disposition} | Duration: {call.duration}s (Twilio sent: {twilio_duration}s)")
@@ -1663,39 +1730,55 @@ def admin_setup_workers():
 @jwt_required
 def admin_fix_dispositions():
     """
-    Corrige chamadas com disposition NULL.
-    - Se duration > 0: answered
-    - Se duration = 0 ou NULL: no-answer
+    Corrige chamadas com disposition inconsistente.
+    - NULL com duration > 0: answered
+    - NULL com duration = 0: no-answer
+    - no-answer com duration > 0: answered (bug fix)
     """
     results = []
 
     try:
-        # Busca chamadas com disposition NULL
+        # 1. Busca chamadas com disposition NULL
         null_calls = Call.query.filter(Call.disposition == None).all()
         results.append(f"Encontradas {len(null_calls)} chamadas com disposition NULL")
 
-        answered_count = 0
-        no_answer_count = 0
+        null_answered = 0
+        null_no_answer = 0
 
         for call in null_calls:
             if call.duration and call.duration > 0:
                 call.disposition = 'answered'
                 if not call.answered_at and call.started_at:
-                    # Estima answered_at baseado no started_at
                     call.answered_at = call.started_at
-                answered_count += 1
+                null_answered += 1
             else:
                 call.disposition = 'no-answer'
-                no_answer_count += 1
+                null_no_answer += 1
+
+        results.append(f"  → {null_answered} marcadas como 'answered'")
+        results.append(f"  → {null_no_answer} marcadas como 'no-answer'")
+
+        # 2. Busca chamadas no-answer com duration > 0 (bug)
+        bad_no_answer = Call.query.filter(
+            Call.disposition == 'no-answer',
+            Call.duration > 0
+        ).all()
+        results.append(f"Encontradas {len(bad_no_answer)} chamadas no-answer com duration > 0")
+
+        for call in bad_no_answer:
+            call.disposition = 'answered'
+            if not call.answered_at and call.started_at:
+                call.answered_at = call.started_at
+
+        results.append(f"  → {len(bad_no_answer)} corrigidas para 'answered'")
 
         db.session.commit()
 
-        results.append(f"{answered_count} chamadas marcadas como 'answered'")
-        results.append(f"{no_answer_count} chamadas marcadas como 'no-answer'")
-
-        # Verifica se ainda há NULLs
-        remaining = Call.query.filter(Call.disposition == None).count()
-        results.append(f"Restantes com NULL: {remaining}")
+        # Verifica se ainda há problemas
+        remaining_null = Call.query.filter(Call.disposition == None).count()
+        remaining_bad = Call.query.filter(Call.disposition == 'no-answer', Call.duration > 0).count()
+        results.append(f"Restantes com NULL: {remaining_null}")
+        results.append(f"Restantes no-answer com duration > 0: {remaining_bad}")
 
         return jsonify({
             "success": True,
@@ -1714,6 +1797,8 @@ def admin_setup_contact_tracking():
     Configura as novas colunas de tracking de contato.
     - Adiciona colunas se não existirem
     - Calcula valores para chamadas existentes
+    - Conta AMBAS direções (inbound + outbound) para cada lead
+    - Exclui números Twilio do tracking
     """
     from sqlalchemy import text
     from core.phone_utils import get_contact_period, get_lead_phone_for_call
@@ -1742,17 +1827,31 @@ def admin_setup_contact_tracking():
                 else:
                     results.append(f"Erro em '{col_name}': {str(e)[:50]}")
 
+        # Lista de números Twilio (não devem ser considerados como leads)
+        twilio_numbers = [
+            Config.TWILIO_NUMBER,
+            Config.CALLER_ID_FL,
+            Config.CALLER_ID_TX,
+            Config.CALLER_ID_DEFAULT
+        ]
+        twilio_numbers_normalized = set(
+            ''.join(c for c in n if c.isdigit())[-10:]
+            for n in twilio_numbers if n
+        )
+        results.append(f"Números Twilio excluídos: {len(twilio_numbers_normalized)}")
+
         # 2. Calcular valores para chamadas existentes
         # Ordena por data para calcular sequência corretamente
         all_calls = Call.query.order_by(Call.started_at.asc()).all()
         results.append(f"Processando {len(all_calls)} chamadas...")
 
-        # Dicionários para tracking
+        # Dicionários para tracking (por lead, somando inbound + outbound)
         phone_contact_count = {}  # phone -> total count
         phone_daily_count = {}    # (phone, date) -> daily count
         phone_answered = {}       # phone -> was ever answered
 
         updated_count = 0
+        skipped_twilio = 0
 
         for call in all_calls:
             # Determina o número do lead
@@ -1762,13 +1861,22 @@ def admin_setup_contact_tracking():
             if not lead_phone:
                 continue
 
-            # Normaliza o número
-            lead_phone_normalized = ''.join(c for c in lead_phone if c.isdigit())
+            # Normaliza o número (últimos 10 dígitos)
+            lead_phone_normalized = ''.join(c for c in lead_phone if c.isdigit())[-10:]
+
+            # Pula se o lead é um número Twilio
+            if lead_phone_normalized in twilio_numbers_normalized:
+                call.contact_number = None
+                call.contact_number_today = None
+                call.previously_answered = False
+                call.contact_period = get_contact_period(call.started_at, call.lead_state)
+                skipped_twilio += 1
+                continue
 
             # Data da chamada
             call_date = call.started_at.date() if call.started_at else None
 
-            # 1. Contact number (total)
+            # 1. Contact number (total - inbound + outbound)
             phone_contact_count[lead_phone_normalized] = phone_contact_count.get(lead_phone_normalized, 0) + 1
             call.contact_number = phone_contact_count[lead_phone_normalized]
 
@@ -1794,6 +1902,7 @@ def admin_setup_contact_tracking():
 
         db.session.commit()
         results.append(f"{updated_count} chamadas atualizadas com tracking")
+        results.append(f"{skipped_twilio} chamadas puladas (números Twilio)")
 
         return jsonify({
             "success": True,
