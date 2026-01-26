@@ -75,7 +75,7 @@ export function CallControlButton({
           <Icon className={iconSizes[size]} />
         )}
       </button>
-      <span className="text-[11px] text-muted-foreground font-medium whitespace-nowrap">{label}</span>
+      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">{label}</span>
     </div>
   );
 }

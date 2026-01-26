@@ -403,8 +403,9 @@ def hold_music():
         language='en-US',
         voice='Polly.Joanna'
     )
-    # Música de espera do Twilio (mais alta e confiável)
-    response.play("http://com.twilio.sounds.music.s3.amazonaws.com/MARKOVICHAMP-B8.mp3", loop=0)
+    # Música de espera - usando URL HTTPS confiável do Twilio
+    # Loop infinito (loop=0) para manter tocando até unhold
+    response.play("https://api.twilio.com/cowbell.mp3", loop=0)
     return str(response), 200, {'Content-Type': 'application/xml'}
 
 
