@@ -1805,6 +1805,99 @@ def admin_setup_contact_tracking():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/admin/analyze_calls", methods=['GET'])
+def analyze_calls():
+    """
+    Análise diagnóstica das chamadas.
+    Acesse: /admin/analyze_calls?date=2026-01-26
+    """
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    date_str = request.args.get('date')  # formato: YYYY-MM-DD
+
+    try:
+        if date_str:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        else:
+            target_date = datetime.utcnow().date()
+
+        # Query chamadas do dia
+        calls = Call.query.filter(
+            func.date(Call.created_at) == target_date
+        ).order_by(Call.created_at.desc()).all()
+
+        # Análise de dispositions
+        disposition_counts = {}
+        for call in calls:
+            d = call.disposition or 'NULL'
+            disposition_counts[d] = disposition_counts.get(d, 0) + 1
+
+        # Chamadas com contact_number estranho (>= 50)
+        strange_contact = []
+        for call in calls:
+            if call.contact_number and call.contact_number >= 50:
+                strange_contact.append({
+                    'id': call.id,
+                    'call_sid': call.call_sid,
+                    'to_number': call.to_number,
+                    'from_number': call.from_number,
+                    'contact_number': call.contact_number,
+                    'disposition': call.disposition,
+                    'duration': call.duration,
+                    'direction': call.direction,
+                    'created_at': call.created_at.isoformat() if call.created_at else None
+                })
+
+        # Chamadas failed
+        failed_calls = []
+        for call in calls:
+            if call.disposition == 'failed':
+                failed_calls.append({
+                    'id': call.id,
+                    'call_sid': call.call_sid,
+                    'to_number': call.to_number,
+                    'from_number': call.from_number,
+                    'direction': call.direction,
+                    'duration': call.duration,
+                    'created_at': call.created_at.isoformat() if call.created_at else None
+                })
+
+        # Todas as chamadas do dia (resumo)
+        all_calls = []
+        for call in calls[:100]:  # Limita a 100
+            all_calls.append({
+                'id': call.id,
+                'direction': call.direction,
+                'from': call.from_number,
+                'to': call.to_number,
+                'disposition': call.disposition,
+                'duration': call.duration,
+                'contact_number': call.contact_number,
+                'contact_number_today': call.contact_number_today,
+                'answered_at': call.answered_at.isoformat() if call.answered_at else None,
+                'created_at': call.created_at.isoformat() if call.created_at else None
+            })
+
+        return jsonify({
+            'date': str(target_date),
+            'total_calls': len(calls),
+            'disposition_summary': disposition_counts,
+            'strange_contact_numbers': {
+                'count': len(strange_contact),
+                'calls': strange_contact
+            },
+            'failed_calls': {
+                'count': len(failed_calls),
+                'calls': failed_calls
+            },
+            'all_calls': all_calls
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ============== ATTIO CRM INTEGRATION ==============
 
 @app.route("/attio/lead", methods=['GET'])
