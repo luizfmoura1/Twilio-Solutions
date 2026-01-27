@@ -1926,6 +1926,63 @@ def admin_fix_inbound_dispositions():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/admin/fix_answered_inbound_to_eduarda", methods=['POST'])
+@jwt_required
+def admin_fix_answered_inbound_to_eduarda():
+    """
+    Corrige chamadas inbound que foram realmente atendidas mas estão como no-answer.
+
+    Critérios:
+    - direction = 'inbound'
+    - disposition = 'no-answer'
+    - duration > 60 segundos
+    - tem recording_url
+    - worker_name NULL
+
+    Ação: muda para answered e atribui a Eduarda
+    """
+    results = []
+
+    try:
+        # Busca chamadas que se encaixam nos critérios
+        answered_calls = Call.query.filter(
+            Call.direction == 'inbound',
+            Call.disposition == 'no-answer',
+            Call.duration > 60,
+            Call.recording_url != None,
+            Call.recording_url != '',
+            (Call.worker_name == None) | (Call.worker_name == '')
+        ).all()
+
+        results.append(f"Encontradas {len(answered_calls)} chamadas inbound realmente atendidas")
+
+        fixed_count = 0
+        call_ids = []
+        for call in answered_calls:
+            call.disposition = 'answered'
+            call.worker_email = 'eduarda@fyntrainc.com'
+            call.worker_name = 'eduarda'
+            # Define answered_at como started_at se não existir
+            if not call.answered_at:
+                call.answered_at = call.started_at
+            call_ids.append(call.id)
+            fixed_count += 1
+
+        db.session.commit()
+        results.append(f"  → {fixed_count} corrigidas e atribuídas a Eduarda")
+        results.append(f"  → IDs: {call_ids}")
+
+        return jsonify({
+            "success": True,
+            "results": results,
+            "fixed_call_ids": call_ids
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/admin/setup_contact_tracking", methods=['POST'])
 @jwt_required
 def admin_setup_contact_tracking():
