@@ -505,6 +505,9 @@ def hold_call():
     if not call_sid:
         return jsonify({"error": "call_sid is required"}), 400
 
+    if client is None:
+        return jsonify({"error": "Twilio client not initialized"}), 500
+
     try:
         # Primeiro verifica se a chamada ainda está ativa
         call_info = client.calls(call_sid).fetch()
@@ -576,6 +579,9 @@ def unhold_call():
 
     if not call_sid or not agent_identity:
         return jsonify({"error": "call_sid and agent_identity are required"}), 400
+
+    if client is None:
+        return jsonify({"error": "Twilio client not initialized"}), 500
 
     try:
         # Primeiro verifica se a chamada ainda está ativa
