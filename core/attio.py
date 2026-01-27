@@ -275,7 +275,7 @@ class AttioClient:
 _attio_client = None
 
 
-def get_attio_client() -> AttioClient:
+def get_attio_client() -> Optional[AttioClient]:
     """Get or create Attio client singleton"""
     global _attio_client
     if _attio_client is None:
