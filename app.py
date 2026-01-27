@@ -198,29 +198,62 @@ def _calculate_contact_tracking(call):
 def _sanitize_disposition(call):
     """
     Sanitize and fix disposition based on call data.
-    Fixes common issues like:
-    - NULL disposition with duration > 0 → answered
-    - no-answer with duration > 0 → answered
-    - NULL disposition with duration = 0 → no-answer
+
+    REGRA CRÍTICA para inbound calls:
+    - Se worker_name/worker_email está NULL = NINGUÉM ATENDEU
+    - Duration > 0 sem worker = tempo que ficou tocando/na fila, NÃO é "answered"
+
+    Lógica correta:
+    1. Se worker atendeu (worker_name tem valor) → answered
+    2. Se ninguém atendeu mas tem voicemail recording → voicemail
+    3. Se ninguém atendeu e sem voicemail → no-answer
+    4. busy, failed, canceled → manter como está
     """
-    # Se já tem uma disposition válida e consistente, não mexe
+    # Para inbound calls via Lovable: worker_name NULL = ninguém atendeu
+    if call.direction == 'inbound' and not call.worker_name and not call.worker_email:
+        # NINGUÉM ATENDEU esta chamada inbound
+        if call.disposition == 'answered':
+            # ERRO: marcada como answered mas worker é NULL
+            if call.recording_url and 'voicemail' in call.recording_url.lower():
+                call.disposition = 'voicemail'
+                print(f"[SANITIZE] Fixed: inbound 'answered' with NULL worker + voicemail → voicemail")
+            else:
+                call.disposition = 'no-answer'
+                call.answered_at = None  # Remove answered_at incorreto
+                print(f"[SANITIZE] Fixed: inbound 'answered' with NULL worker → no-answer")
+            return
+        elif call.disposition in ('voicemail', 'no-answer', 'busy', 'failed', 'canceled'):
+            # Já está correto
+            return
+        elif call.disposition is None or call.disposition == '':
+            # NULL disposition em inbound sem worker
+            call.disposition = 'no-answer'
+            call.answered_at = None
+            print(f"[SANITIZE] Fixed: inbound NULL disposition with NULL worker → no-answer")
+            return
+
+    # Para outbound calls ou inbound com worker: lógica antiga
     valid_dispositions = ('answered', 'voicemail', 'busy', 'failed', 'canceled')
     if call.disposition in valid_dispositions:
-        # Mas corrige no-answer com duration > 0 (bug)
-        if call.disposition == 'no-answer' and call.duration and call.duration > 0:
-            call.disposition = 'answered'
-            if not call.answered_at and call.started_at:
-                call.answered_at = call.started_at
-            print(f"[SANITIZE] Fixed: no-answer with duration {call.duration}s → answered")
+        # Não mexe se já tem disposition válida
+        return
+
+    if call.disposition == 'no-answer':
+        # no-answer pode estar correto, não mexe
         return
 
     # Disposition é NULL ou inválido - determinar baseado na duração
     if call.duration and call.duration > 0:
-        # Teve duração > 0, então foi atendida
-        call.disposition = 'answered'
-        if not call.answered_at and call.started_at:
-            call.answered_at = call.started_at
-        print(f"[SANITIZE] Fixed NULL disposition with duration {call.duration}s → answered")
+        # Teve duração > 0, provavelmente foi atendida (só para outbound)
+        if call.direction == 'outbound':
+            call.disposition = 'answered'
+            if not call.answered_at and call.started_at:
+                call.answered_at = call.started_at
+            print(f"[SANITIZE] Fixed NULL disposition (outbound) with duration {call.duration}s → answered")
+        else:
+            # Inbound com duration mas sem worker já foi tratado acima
+            call.disposition = 'no-answer'
+            print(f"[SANITIZE] Fixed NULL disposition (inbound, no worker) with duration {call.duration}s → no-answer")
     else:
         # Duração 0 ou NULL, não foi atendida
         call.disposition = 'no-answer'
@@ -640,11 +673,10 @@ def inbound_status():
     print(f"[INBOUND STATUS] Call found in DB: {call is not None}")
 
     if dial_call_status == 'completed' or dial_call_status == 'answered':
-        # Alguém atendeu!
+        # Dial completou - mas alguém realmente atendeu?
         print(f"[INBOUND STATUS] Dial completed/answered - call found: {call is not None}")
         if call:
-            call.answered_at = datetime.now(timezone.utc)
-            call.disposition = 'answered'
+            worker_found = False
 
             # Extrai a identidade do cliente que atendeu
             print(f"[INBOUND STATUS] Called field: '{called_via}' - starts with 'client:': {called_via.startswith('client:') if called_via else False}")
@@ -658,27 +690,30 @@ def inbound_status():
                 active_users = User.query.filter_by(is_active=True).all()
                 print(f"[INBOUND STATUS] Found {len(active_users)} active users")
 
-                found_worker = False
                 for user in active_users:
                     user_identity = ''.join(c for c in user.email if c.isalnum() or c in '_-')
                     print(f"[INBOUND STATUS] Comparing '{client_identity}' with '{user_identity}' ({user.email})")
                     if user_identity == client_identity:
                         call.worker_email = user.email
                         call.worker_name = user.name or user.email.split('@')[0].capitalize()
+                        call.answered_at = datetime.now(timezone.utc)
+                        call.disposition = 'answered'
+                        worker_found = True
                         print(f"[INBOUND STATUS] ✓ Call answered by {call.worker_name} ({call.worker_email})")
-                        found_worker = True
                         break
 
-                if not found_worker:
-                    print(f"[INBOUND STATUS] ✗ No matching user found for identity '{client_identity}'")
+                if not worker_found:
+                    print(f"[INBOUND STATUS] ✗ No matching user found for identity '{client_identity}' - NOT marking as answered")
+                    call.disposition = 'no-answer'
             else:
-                print(f"[INBOUND STATUS] ✗ Called field doesn't start with 'client:' - cannot identify worker")
+                print(f"[INBOUND STATUS] ✗ Called field doesn't start with 'client:' - marking as no-answer")
+                call.disposition = 'no-answer'
 
             db.session.commit()
 
-            # Send "Call Answered by Agent" alert
+            # Send "Call Answered by Agent" alert (ONLY if worker was identified)
             alert_manager = get_alert_manager()
-            if alert_manager and call.worker_name:
+            if alert_manager and worker_found and call.worker_name:
                 alert = CallAlert(
                     call_sid=call_sid,
                     from_number=call.from_number,
@@ -1831,6 +1866,55 @@ def admin_fix_dispositions():
         remaining_bad = Call.query.filter(Call.disposition == 'no-answer', Call.duration > 0).count()
         results.append(f"Restantes com NULL: {remaining_null}")
         results.append(f"Restantes no-answer com duration > 0: {remaining_bad}")
+
+        return jsonify({
+            "success": True,
+            "results": results
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/fix_inbound_dispositions", methods=['POST'])
+@jwt_required
+def admin_fix_inbound_dispositions():
+    """
+    Corrige dispositions de chamadas inbound incorretas.
+
+    REGRA: Inbound calls com worker_name NULL = ninguém atendeu
+    - Se disposition = 'answered' mas worker_name NULL → muda para 'no-answer'
+    - Remove answered_at incorreto
+    """
+    results = []
+
+    try:
+        # Busca chamadas inbound marcadas como answered mas sem worker
+        bad_answered = Call.query.filter(
+            Call.direction == 'inbound',
+            Call.disposition == 'answered',
+            (Call.worker_name == None) | (Call.worker_name == '')
+        ).all()
+
+        results.append(f"Encontradas {len(bad_answered)} chamadas inbound 'answered' sem worker")
+
+        fixed_count = 0
+        for call in bad_answered:
+            call.disposition = 'no-answer'
+            call.answered_at = None  # Remove answered_at incorreto
+            fixed_count += 1
+
+        db.session.commit()
+        results.append(f"  → {fixed_count} corrigidas para 'no-answer'")
+
+        # Verifica se ainda há problemas
+        remaining = Call.query.filter(
+            Call.direction == 'inbound',
+            Call.disposition == 'answered',
+            (Call.worker_name == None) | (Call.worker_name == '')
+        ).count()
+        results.append(f"Restantes com problema: {remaining}")
 
         return jsonify({
             "success": True,
