@@ -627,32 +627,52 @@ def inbound_status():
     dial_call_status = request.form.get('DialCallStatus', '')  # completed, no-answer, busy, failed, canceled
     dial_call_sid = request.form.get('DialCallSid', '')  # SID da perna que atendeu
     called_via = request.form.get('Called', '')  # client:identity que atendeu
+    dial_bridge_target = request.form.get('DialBridged', '')  # Who answered (for simultaneous dial)
 
-    print(f"[INBOUND STATUS] CallSid={call_sid}, DialStatus={dial_call_status}, CalledVia={called_via}")
+    # Log all form data for debugging
+    print(f"[INBOUND STATUS] CallSid={call_sid}, DialStatus={dial_call_status}, CalledVia={called_via}, DialBridged={dial_bridge_target}")
+    print(f"[INBOUND STATUS] All form data: {dict(request.form)}")
 
     response = VoiceResponse()
 
     # Busca a chamada no banco
     call = Call.query.filter_by(call_sid=call_sid).first()
+    print(f"[INBOUND STATUS] Call found in DB: {call is not None}")
 
     if dial_call_status == 'completed' or dial_call_status == 'answered':
         # Alguém atendeu!
+        print(f"[INBOUND STATUS] Dial completed/answered - call found: {call is not None}")
         if call:
             call.answered_at = datetime.now(timezone.utc)
             call.disposition = 'answered'
 
             # Extrai a identidade do cliente que atendeu
+            print(f"[INBOUND STATUS] Called field: '{called_via}' - starts with 'client:': {called_via.startswith('client:') if called_via else False}")
+
             if called_via and called_via.startswith('client:'):
                 client_identity = called_via.replace('client:', '')
+                print(f"[INBOUND STATUS] Looking for client identity: '{client_identity}'")
+
                 # Tenta encontrar o usuário pelo identity
                 from models.user import User
-                for user in User.query.filter_by(is_active=True).all():
+                active_users = User.query.filter_by(is_active=True).all()
+                print(f"[INBOUND STATUS] Found {len(active_users)} active users")
+
+                found_worker = False
+                for user in active_users:
                     user_identity = ''.join(c for c in user.email if c.isalnum() or c in '_-')
+                    print(f"[INBOUND STATUS] Comparing '{client_identity}' with '{user_identity}' ({user.email})")
                     if user_identity == client_identity:
                         call.worker_email = user.email
                         call.worker_name = user.name or user.email.split('@')[0].capitalize()
-                        print(f"[INBOUND STATUS] Call answered by {call.worker_name} ({call.worker_email})")
+                        print(f"[INBOUND STATUS] ✓ Call answered by {call.worker_name} ({call.worker_email})")
+                        found_worker = True
                         break
+
+                if not found_worker:
+                    print(f"[INBOUND STATUS] ✗ No matching user found for identity '{client_identity}'")
+            else:
+                print(f"[INBOUND STATUS] ✗ Called field doesn't start with 'client:' - cannot identify worker")
 
             db.session.commit()
 
@@ -702,6 +722,8 @@ def inbound_status():
             voice='Polly.Joanna'
         )
         response.hangup()
+    else:
+        print(f"[INBOUND STATUS] ⚠️ Unexpected DialCallStatus: '{dial_call_status}'")
 
     return str(response), 200, {'Content-Type': 'application/xml'}
 
