@@ -396,7 +396,7 @@ def voice():
                 # Pass parent call SID so client can use it for hold
                 client_elem = dial.client(identity)
                 if client_elem is not None:
-                    client_elem.parameter(name='ParentCallSid', value=call_sid)
+                    client_elem.parameter(name='ParentCallSid', value=call_sid)  # type: ignore[union-attr]
 
         else:
             # ===== FLEX: Enqueue para TaskRouter =====
@@ -2050,7 +2050,7 @@ def get_attio_lead():
         return jsonify({"error": "Attio integration not configured"}), 500
 
     try:
-        lead = attio.search_person_by_phone(phone)
+        lead = attio.search_person_by_phone(phone)  # type: ignore[union-attr]
 
         if lead:
             # Include raw if debug param is set
@@ -2111,7 +2111,7 @@ def add_attio_note():
         return jsonify({"error": "Attio integration not configured"}), 500
 
     try:
-        success = attio.add_note_to_person(record_id, note)
+        success = attio.add_note_to_person(record_id, note)  # type: ignore[union-attr]
 
         if success:
             print(f"[ATTIO] Note added to record {record_id}")
@@ -2160,7 +2160,7 @@ def search_attio_contacts():
         return jsonify({"error": "Attio integration not configured"}), 500
 
     try:
-        contacts = attio.search_people(query if query else None, limit)
+        contacts = attio.search_people(query if query else None, limit)  # type: ignore[union-attr]
         print(f"[ATTIO] Contacts search: query='{query}', found={len(contacts)}")
         return jsonify({"contacts": contacts, "count": len(contacts)})
 
