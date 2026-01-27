@@ -1168,7 +1168,7 @@ def outbound_connect():
 
 @app.route("/amd_status", methods=['POST'])
 @validate_twilio_signature
-def amd_status():
+def handle_amd_status():
     """
     Callback do AMD (Answering Machine Detection).
     Quando detecta caixa postal: deixa mensagem e desliga.
