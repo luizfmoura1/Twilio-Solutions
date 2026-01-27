@@ -24,6 +24,8 @@ class CallAlert:
     recording_url: Optional[str] = None
     direction: str = ''
     worker_name: Optional[str] = None
+    lead_name: Optional[str] = None
+    caller_city: Optional[str] = None
 
 
 class SlackNotifier:
@@ -83,28 +85,33 @@ class SlackNotifier:
         display_state = alert.lead_state if alert.lead_state else 'Unknown'
         worker = alert.worker_name if alert.worker_name else None
 
+        # Format lead info (name + phone or just phone)
+        lead_display = alert.from_number if alert.direction == 'inbound' else alert.to_number
+        if alert.lead_name:
+            lead_display = f"{alert.lead_name}\n{lead_display}"
+        elif alert.caller_city:
+            lead_display = f"{lead_display}\n{alert.caller_city}"
+
         # Build fields based on status type
         if display_status == 'ringing':
-            # Incoming Call: from, to, state (no duration)
+            # Incoming Call: lead, to, state (no duration)
             fields = [
-                {"type": "mrkdwn", "text": f"*From:*\n{alert.from_number}"},
+                {"type": "mrkdwn", "text": f"*Lead:*\n{lead_display}"},
                 {"type": "mrkdwn", "text": f"*To:*\n{alert.to_number}"},
                 {"type": "mrkdwn", "text": f"*State:*\n{display_state}"}
             ]
         elif display_status == 'in-progress':
-            # Call Answered: from, to, worker
+            # Call Answered: lead, agent
             fields = [
-                {"type": "mrkdwn", "text": f"*From:*\n{alert.from_number}"},
-                {"type": "mrkdwn", "text": f"*To:*\n{alert.to_number}"}
+                {"type": "mrkdwn", "text": f"*Lead:*\n{lead_display}"}
             ]
             if worker:
                 fields.append({"type": "mrkdwn", "text": f"*Agent:*\n{worker}"})
         elif display_status in ('answered', 'completed'):
-            # Call Completed: from, to, state, worker, duration
+            # Call Completed: lead, state, agent, duration
             duration_str = self._format_duration(alert.duration) if alert.duration > 0 else "N/A"
             fields = [
-                {"type": "mrkdwn", "text": f"*From:*\n{alert.from_number}"},
-                {"type": "mrkdwn", "text": f"*To:*\n{alert.to_number}"},
+                {"type": "mrkdwn", "text": f"*Lead:*\n{lead_display}"},
                 {"type": "mrkdwn", "text": f"*State:*\n{display_state}"},
                 {"type": "mrkdwn", "text": f"*Duration:*\n{duration_str}"}
             ]
@@ -113,8 +120,7 @@ class SlackNotifier:
         else:
             # Other statuses (no-answer, busy, failed, canceled)
             fields = [
-                {"type": "mrkdwn", "text": f"*From:*\n{alert.from_number}"},
-                {"type": "mrkdwn", "text": f"*To:*\n{alert.to_number}"},
+                {"type": "mrkdwn", "text": f"*Lead:*\n{lead_display}"},
                 {"type": "mrkdwn", "text": f"*State:*\n{display_state}"}
             ]
 

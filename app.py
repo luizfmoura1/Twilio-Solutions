@@ -355,7 +355,8 @@ def voice():
                     status='ringing',
                     duration=0,
                     lead_state=lead_state,
-                    direction='inbound'
+                    direction='inbound',
+                    caller_city=caller_city
                 )
                 alert_manager.notify_call_status(alert)
 
@@ -655,6 +656,24 @@ def inbound_status():
 
             db.session.commit()
 
+            # Send "Call Answered by Agent" alert
+            alert_manager = get_alert_manager()
+            if alert_manager and call.worker_name:
+                alert = CallAlert(
+                    call_sid=call_sid,
+                    from_number=call.from_number,
+                    to_number=call.to_number,
+                    status='in-progress',
+                    duration=0,
+                    disposition='answered',
+                    lead_state=call.lead_state,
+                    recording_url=None,
+                    direction='inbound',
+                    worker_name=call.worker_name,
+                    caller_city=call.caller_city
+                )
+                alert_manager.notify_call_status(alert)
+
     elif dial_call_status == 'no-answer':
         # Ninguém atendeu - deixa mensagem
         if call:
@@ -862,7 +881,8 @@ def taskrouter_event():
                     duration=0,
                     lead_state=call.lead_state,
                     direction=call.direction or 'inbound',
-                    worker_name=worker_name
+                    worker_name=worker_name,
+                    caller_city=call.caller_city
                 )
                 alert_manager.notify_call_status(alert)
 
@@ -1039,7 +1059,8 @@ def call_status():
             lead_state=call.lead_state,
             recording_url=call.recording_url,
             direction=call.direction or direction,
-            worker_name=call.worker_name
+            worker_name=call.worker_name,
+            caller_city=call.caller_city
         )
         alert_manager.notify_call_status(alert)
 
@@ -1079,7 +1100,9 @@ def recording_status():
                     disposition=call.disposition,
                     lead_state=call.lead_state,
                     recording_url=call.recording_url,
-                    direction=call.direction or ''
+                    direction=call.direction or '',
+                    worker_name=call.worker_name,
+                    caller_city=call.caller_city
                 )
                 alert_manager.notify_recording_ready(alert)
         else:
